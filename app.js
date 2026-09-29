@@ -37,13 +37,23 @@ S.rules.tie=S.rules.tie||'kicha';
 if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
 // 旧形式（起家だけ保存）からの移行
 S.games.forEach(g=>{ if(!g.seat){ const n=g.pts.length,d=g.dealer||0; g.seat=g.pts.map((_,p)=>(p-d+n)%n); delete g.dealer; } });
-function validSeat(a,n){ return Array.isArray(a)&&a.length===n&&idSeat(n).every(w=>a.includes(w)); }
-if(!validSeat(S.seat,S.rules.players)) S.seat=idSeat(S.rules.players);
+// メンバーは卓の人数〜6人。卓に入らない人は席が -1（抜け番）
+S.members=Math.min(6,Math.max(S.rules.players,S.members||S.names.filter(x=>x!=null).length||S.rules.players));
+while(S.names.length<6) S.names.push('');
+function defaultSeat(){ return idSeat(S.members).map(i=>i<S.rules.players?i:-1); }
+function validSeat(a){ if(!Array.isArray(a)||a.length!==S.members) return false; const n=S.rules.players;
+  return a.every(w=>w===-1||(w>=0&&w<n))&&idSeat(n).every(w=>a.filter(x=>x===w).length<=1); }
+if(!validSeat(S.seat)) S.seat=defaultSeat();
+// 持ち点の入力は点数そのまま（25000）。以前の百点単位の入力途中データは消す
+if(S.draftV!==2){ S.draft={}; S.draftV=2; }
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
 
 const $=id=>document.getElementById(id);
 const N=()=>S.rules.players;
-const names=()=>S.names.slice(0,N());
+const M=()=>S.members;
+const names=()=>S.names.slice(0,M());
+const seated=()=>idSeat(M()).filter(p=>S.seat[p]>=0);
+const seatOK=()=>idSeat(N()).every(w=>S.seat.filter(x=>x===w).length===1);
 const rate=()=>Number(S.rules.rate);
 const umaArr=()=>S.rules.uma==='custom'?S.rules.umaCustom.slice(0,N()).map(Number):UMA[N()][S.rules.uma]||UMA[N()].none;
 const oka=()=>(S.rules.ret-S.rules.start)*N()/1000;
@@ -63,8 +73,10 @@ const isBust=v=>S.rules.tobiAt==='zero'?v<=0:v<0;
 
 /* 1半荘の計算：順位・同点処理・ウマ・オカ */
 function calc(g){
-  const n=g.pts.length, u=umaArr(), tie=S.rules.tie, seat=g.seat;
-  let order=idSeat(n).sort((a,b)=>g.pts[b]-g.pts[a]||seat[a]-seat[b]);
+  // その半荘に入っていた人だけで計算（抜け番は対象外）
+  const L=g.pts.length, seat=g.seat, P=idSeat(L).filter(i=>seat[i]!=null&&seat[i]>=0&&g.pts[i]!=null);
+  const n=P.length, u=umaArr(), tie=S.rules.tie;
+  let order=P.slice().sort((a,b)=>g.pts[b]-g.pts[a]||seat[a]-seat[b]);
   // 同点グループ
   const groups=[]; order.forEach(p=>{ const last=groups[groups.length-1]; if(last&&g.pts[last[0]]===g.pts[p]) last.push(p); else groups.push([p]); });
   if(tie==='kamicha'){
@@ -72,7 +84,7 @@ function calc(g){
       if((seat[b]+1)%n===seat[a]&&(seat[a]+1)%n!==seat[b]){ gr[0]=b; gr[1]=a; } } });
     order=groups.flat();
   }
-  const rank=Array(n), score=Array(n), tied=new Set();
+  const rank=Array(L).fill(null), score=Array(L).fill(null), tied=new Set();
   let idx=0; const shared=[];
   groups.forEach(gr=>{
     if(gr.length>1) gr.forEach(p=>tied.add(p));
@@ -91,7 +103,7 @@ function calc(g){
   const T=tobiPt(), tobi=[];
   if(T&&g.tobi) Object.entries(g.tobi).forEach(([p,b])=>{ p=Number(p); if(b==null||b==='none') return; b=Number(b);
     score[p]=fix(score[p]-T); score[b]=fix(score[b]+T); tobi.push([p,b]); });
-  return {rank,score,order,tied,tobi};
+  return {rank,score,order,tied,tobi,out:idSeat(L).filter(i=>!P.includes(i))};
 }
 const fmtPt=v=>{ v=fix(v); const s=Number.isInteger(v)?String(Math.abs(v)):Math.abs(v).toFixed(1); return (v>0?'+':v<0?'−':'±')+s; };
 const cls=v=>v>0?'pos':v<0?'neg':'';
@@ -107,7 +119,7 @@ function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true
 /* ---------- header ---------- */
 function renderHeader(){
   const r=S.rules, u=umaArr();
-  $('modeLbl').textContent=(N()===4?'4人':'3人')+'・'+S.games.length+'半荘';
+  $('modeLbl').textContent=(N()===4?'4人':'3人')+(M()>N()?`（${M()}人回し）`:'')+'・'+S.games.length+'半荘';
   const umaTxt=r.uma==='none'?'なし':(r.uma==='custom'?u.map(x=>x>0?'+'+x:x).join('/'):(UMA_LBL3[r.uma]&&N()===3?UMA_LBL3[r.uma]:UMA_LBL[r.uma]));
   $('ruleChips').innerHTML=[
     `<span class="chip">レート <b>${r.rate}</b></span>`,
@@ -158,8 +170,7 @@ function bindSeg(el,fn){ el.addEventListener('click',e=>{ const b=e.target.close
 bindSeg($('segPlayers'),v=>{
   v=Number(v); if(v===N()) return;
   const k=S.rules; S.rules=Object.assign(defaults(v),{rate:k.rate,round:k.round,tie:k.tie,chipInit:k.chipInit,chipPt:k.chipPt,kuitan:k.kuitan,atozuke:k.atozuke});
-  S.games=[]; S.chips=[]; S.draft={}; S.seat=idSeat(v); unsample();
-  while(S.names.length<4) S.names.push('');
+  S.members=Math.max(v,S.members); S.games=[]; S.chips=[]; S.draft={}; S.seat=defaultSeat(); unsample();
 });
 bindSeg($('segRate'),v=>{S.rules.rate=v;});
 bindSeg($('segRound'),v=>{S.rules.round=v;});
@@ -175,28 +186,43 @@ $('swKuitan').addEventListener('click',()=>{S.rules.kuitan=!S.rules.kuitan;updat
 $('swAto').addEventListener('click',()=>{S.rules.atozuke=!S.rules.atozuke;update();});
 
 /* ---------- players ---------- */
+function usedMembers(){ return S.games.reduce((m,g)=>{ g.seat.forEach((w,i)=>{ if(w>=0) m=Math.max(m,i+1); }); return m; },0); }
 function renderPlayers(){
+  const used=usedMembers();
+  $('segMembers').innerHTML=[3,4,5,6].filter(k=>k>=N()).map(k=>`<button type="button" data-v="${k}" ${k<used?'disabled':''}>${k}人</button>`).join('');
+  setSeg($('segMembers'),M());
+  $('memHint').textContent=(M()>N()?`${N()}人で打ち、毎回${M()-N()}人が抜け番になります。抜け番は半荘ごとに対局画面で選びます。`:'全員が毎回卓に入ります。')
+    +(used>N()?`（記録に${used}人目まで入っているので、それより少なくはできません）`:'');
   if($('seatList').contains(document.activeElement)) return;
   $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="num-b">${i+1}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
 }
+$('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||b.disabled) return;
+  const k=Number(b.dataset.v); if(k===M()) return;
+  S.members=k;
+  const ns=S.seat.slice(0,k); while(ns.length<k) ns.push(-1);
+  S.seat=validSeat(ns)?ns:defaultSeat();
+  S.chips=[]; unsample(); update(); });
 $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; S.names[i]=e.target.value; unsample(); renderHeader(); save(); });
 
 /* ---------- game entry ---------- */
-function parseDraft(i){ const d=S.draft['p'+i]; if(d==null||d==='') return null; const n=parseInt(d,10); if(isNaN(n)) return null; return (S.draft['s'+i]?-1:1)*n*100; }
+function parseDraft(i){ const d=S.draft['p'+i]; if(d==null||d==='') return null; const n=parseInt(d,10); if(isNaN(n)) return null; return (S.draft['s'+i]?-1:1)*n; }
 function renderEntry(){
   $('nextTitle').textContent=`第${S.games.length+1}半荘の持ち点`;
   if($('entryList').contains(document.activeElement)) { checkSum(); return; }
-  const n=N();
-  $('entryList').innerHTML=idSeat(n).map(i=>{ const neg=!!S.draft['s'+i];
-    const winds=idSeat(n).map(w=>`<button type="button" class="wb ${w===0?'red':''}" data-p="${i}" data-w="${w}" aria-pressed="${S.seat[i]===w}" aria-label="${esc(nameOf(i))}を${WINDS[w]}家にする">${WINDS[w]}</button>`).join('');
-    return `<div class="entry"><div class="nm">${esc(nameOf(i))}</div><div class="winds">${winds}</div>
-      <div class="pin"><button type="button" class="sign ${neg?'neg':''}" data-s="${i}" aria-label="プラスとマイナスを切り替え">${neg?'−':'+'}</button><input id="pt${i}" data-i="${i}" inputmode="numeric" placeholder="250" value="${S.draft['p'+i]??''}" aria-label="${esc(nameOf(i))}の持ち点（百点単位）"><span class="zz">00</span></div></div>`;}).join('');
+  const n=N(), rot=M()>n;
+  $('entryList').innerHTML=idSeat(M()).map(i=>{ const neg=!!S.draft['s'+i], out=S.seat[i]<0;
+    const winds=idSeat(n).map(w=>`<button type="button" class="wb ${w===0?'red':''}" data-p="${i}" data-w="${w}" aria-pressed="${S.seat[i]===w}" aria-label="${esc(nameOf(i))}を${WINDS[w]}家にする">${WINDS[w]}</button>`).join('')
+      +(rot?`<button type="button" class="wb nuke" data-p="${i}" data-w="-1" aria-pressed="${out}" aria-label="${esc(nameOf(i))}を抜け番にする">抜</button>`:'');
+    const pin=out?`<div class="pin outpin">抜け番</div>`
+      :`<div class="pin"><button type="button" class="sign ${neg?'neg':''}" data-s="${i}" aria-label="プラスとマイナスを切り替え">${neg?'−':'+'}</button><input id="pt${i}" data-i="${i}" inputmode="numeric" placeholder="25000" value="${S.draft['p'+i]??''}" aria-label="${esc(nameOf(i))}の持ち点"><span class="zz">点</span></div>`;
+    return `<div class="entry ${out?'isout':''}"><div class="nm">${esc(nameOf(i))}</div><div class="winds">${winds}</div>${pin}</div>`;}).join('');
   checkSum();
 }
 function checkSum(){
-  const n=N(), vals=idSeat(n).map(parseDraft), filled=vals.filter(v=>v!=null).length;
+  const n=N(), vals=seated().map(parseDraft), filled=vals.filter(v=>v!=null).length;
   const target=S.rules.start*n, sum=vals.reduce((a,b)=>a+(b||0),0), diff=sum-target;
   const el=$('sumCheck');
+  if(!seatOK()){ el.className='check ng'; el.innerHTML=`<span>席が決まっていません</span><span>${idSeat(n).map(w=>WINDS[w]).join('')}を1人ずつ選んでください</span>`; $('saveGame').disabled=true; $('autoFill').disabled=true; renderTobi(); return; }
   if(filled<n){ el.className='check'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span> / ${fmtPts(target)}点</span><span>あと${n-filled}人</span>`; }
   else if(diff===0){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${diff>0?'':'あと'}<span class="num">${fmtPts(Math.abs(diff))}</span>点${diff>0?'多い':'足りない'}</span>`; }
@@ -208,15 +234,16 @@ $('entryList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==n
 $('entryList').addEventListener('click',e=>{
   const w=e.target.closest('[data-w]');
   if(w){ // 席を入れ替え：選んだ風の人と交換
-    const p=Number(w.dataset.p), nw=Number(w.dataset.w), q=S.seat.indexOf(nw);
-    if(q!==p){ S.seat[q]=S.seat[p]; S.seat[p]=nw; }
+    const p=Number(w.dataset.p), nw=Number(w.dataset.w);
+    if(nw<0){ S.seat[p]=-1; }            // 抜け番にする（空いた風は別の人を選ぶ）
+    else { const q=S.seat.indexOf(nw); if(q>=0&&q!==p) S.seat[q]=S.seat[p]; S.seat[p]=nw; }
     unsample(); blur(); renderEntry(); if(scan) renderScan(); save(); return;
   }
   const b=e.target.closest('[data-s]'); if(!b) return;
   const i=b.dataset.s; S.draft['s'+i]=!S.draft['s'+i]; b.classList.toggle('neg',S.draft['s'+i]); b.textContent=S.draft['s'+i]?'−':'+'; checkSum(); save();
 });
 /* 飛び賞：飛んだ人ごとに「飛ばした人」を選ぶ。全員選び終わるまで記録できない */
-function bustedInDraft(){ return S.rules.tobi?idSeat(N()).filter(p=>{ const v=parseDraft(p); return v!=null&&isBust(v); }):[]; }
+function bustedInDraft(){ return S.rules.tobi?seated().filter(p=>{ const v=parseDraft(p); return v!=null&&isBust(v); }):[]; }
 function renderTobi(){
   const busted=bustedInDraft(), box=$('tobiBox');
   S.draft.tobi=S.draft.tobi||{};
@@ -225,7 +252,7 @@ function renderTobi(){
   if(!busted.length){ box.innerHTML=''; return true; }
   const T=fix(tobiPt());
   box.innerHTML=busted.map(p=>{ const sel=S.draft.tobi[p];
-    const opts=idSeat(N()).filter(q=>q!==p).map(q=>`<button type="button" data-tb="${p}" data-v="${q}" aria-pressed="${String(sel)===String(q)}">${esc(nameOf(q))}</button>`).join('')
+    const opts=seated().filter(q=>q!==p).map(q=>`<button type="button" data-tb="${p}" data-v="${q}" aria-pressed="${String(sel)===String(q)}">${esc(nameOf(q))}</button>`).join('')
       +`<button type="button" data-tb="${p}" data-v="none" aria-pressed="${sel==='none'}">なし</button>`;
     return `<div><div class="q"><b>${esc(nameOf(p))}</b>が飛び（−${T}pt）。飛ばしたのは？</div><div class="seg">${opts}</div></div>`; }).join('')
     +'<div class="hint">「なし」は流局の罰符などで飛んだとき用です（飛び賞は移動しません）。</div>';
@@ -234,16 +261,17 @@ function renderTobi(){
 $('tobiBox').addEventListener('click',e=>{ const b=e.target.closest('[data-tb]'); if(!b) return;
   S.draft.tobi=S.draft.tobi||{}; S.draft.tobi[b.dataset.tb]=b.dataset.v==='none'?'none':Number(b.dataset.v); checkSum(); save(); });
 $('autoFill').addEventListener('click',()=>{
-  const n=N(), vals=idSeat(n).map(parseDraft), miss=vals.indexOf(null); if(miss<0) return;
-  const rest=S.rules.start*n-vals.reduce((a,b)=>a+(b||0),0);
-  S.draft['s'+miss]=rest<0; S.draft['p'+miss]=String(Math.abs(Math.round(rest/100)));
+  const n=N(), ps=seated(), vals=ps.map(parseDraft), mi=vals.indexOf(null); if(mi<0) return;
+  const miss=ps[mi], rest=S.rules.start*n-vals.reduce((a,b)=>a+(b||0),0);
+  S.draft['s'+miss]=rest<0; S.draft['p'+miss]=String(Math.abs(rest));
   blur(); renderEntry(); save();
 });
 $('clearEntry').addEventListener('click',()=>{ S.draft={}; blur(); renderEntry(); save(); });
 let freshId=null;
 $('saveGame').addEventListener('click',()=>{
-  const n=N(), pts=idSeat(n).map(parseDraft);
-  if(pts.some(v=>v==null)) return;
+  if(!seatOK()) return;
+  const pts=idSeat(M()).map(p=>S.seat[p]>=0?parseDraft(p):null);
+  if(seated().some(p=>pts[p]==null)) return;
   unsample();
   const id=(S.games.reduce((m,g)=>Math.max(m,g.id),0))+1;
   const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
@@ -262,7 +290,7 @@ function renderGames(){
     const rows=c.order.map(p=>`<div class="r"><span class="tile sm">${RANKK[c.rank[p]]}</span><span>${esc(nameOf(p))}<span class="wind">${WINDS[g.seat[p]]}</span>${c.tied.has(p)?'<span class="tieNote">同点</span>':''}${c.tobi.some(([x])=>x===p)?'<span class="tieNote">飛び</span>':''}</span><span class="raw">${fmtPts(g.pts[p])}</span><span class="pt ${cls(c.score[p])}">${fmtPt(c.score[p])}</span></div>`).join('');
     const tm=new Date(g.t); const hm=tm.getHours()+':'+String(tm.getMinutes()).padStart(2,'0');
     return `<article class="game ${g.id===freshId?'fresh':''}"><header><b>第${no}半荘</b><span class="hint">起家 ${esc(nameOf(dealer))}・${hm}　<button type="button" class="btn danger" style="padding:2px 8px;font-size:11px" data-del="${g.id}">削除</button></span></header>
-    <div class="res">${rows}</div>${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${confirmDel===g.id?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
+    <div class="res">${rows}</div>${c.out.length?`<div class="hint" style="margin-top:4px">抜け番：${c.out.map(i=>esc(nameOf(i))).join('、')}</div>`:''}${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${confirmDel===g.id?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
   }).join('');
   freshId=null;
 }
@@ -275,15 +303,15 @@ $('gameList').addEventListener('click',e=>{
 
 /* ---------- totals ---------- */
 function renderTotal(){
-  const n=N(), r=S.rules;
-  const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(n).fill(0));
-  S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{tot[i]+=s; rk[i][c.rank[i]]++;}); });
-  if(!S.chips||S.chips.length!==n) S.chips=Array(n).fill(r.chipInit);
+  const n=M(), r=S.rules;
+  const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
+  S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{ if(i>=n) return; if(s==null){ outs[i]++; return; } tot[i]+=s; if(c.rank[i]!=null) rk[i][c.rank[i]]++; }); });
+  if(!S.chips||S.chips.length!==n) S.chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:r.chipInit);
   const chipsFilled=S.chips.every(v=>v!==''&&v!=null&&!isNaN(v));
   const chipPt=S.chips.map(c=>chipsFilled?fix((Number(c)-r.chipInit)*r.chipPt):0);
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   if(!$('chipFields').contains(document.activeElement)){
-    $('chipFields').className=n===4?'grid4':'grid3';
+    $('chipFields').className=n===3?'grid3':'grid4';
     $('chipFields').innerHTML=names().map((_,i)=>`<div><div class="mini">${esc(nameOf(i))}</div><label class="field"><input id="chip${i}" data-i="${i}" inputmode="numeric" value="${S.chips[i]??''}" aria-label="${esc(nameOf(i))}のチップ枚数"><span class="unit">枚</span></label></div>`).join('');
   }
   const cs=S.chips.reduce((a,b)=>a+(Number(b)||0),0), ct=r.chipInit*n, el=$('chipCheck');
@@ -293,14 +321,14 @@ function renderTotal(){
   $('yenCards').className='big'+(n===3?' three':'');
   $('yenCards').innerHTML=ord.map(i=>`<div class="who"><div class="n">${esc(nameOf(i))}</div><div class="y ${cls(all[i])}">${fmtYen(yen(all[i]))}</div><div class="p">${fmtPt(all[i])}pt</div></div>`).join('');
   const head=`<tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>半荘</th><th>チップ</th><th>合計pt</th><th>金額</th></tr>`;
-  const body=ord.map(i=>`<tr><td class="nm">${esc(nameOf(i))}<small>${rk[i].join('-')}</small></td><td class="${cls(tot[i])}">${fmtPt(tot[i])}</td><td class="${cls(chipPt[i])}">${fmtPt(chipPt[i])}</td><td class="${cls(all[i])}"><b>${fmtPt(all[i])}</b></td><td class="yen ${cls(all[i])}">${fmtYen(yen(all[i]))}</td></tr>`).join('');
+  const body=ord.map(i=>`<tr><td class="nm">${esc(nameOf(i))}<small>${rk[i].join('-')}${outs[i]?`・抜${outs[i]}`:''}</small></td><td class="${cls(tot[i])}">${fmtPt(tot[i])}</td><td class="${cls(chipPt[i])}">${fmtPt(chipPt[i])}</td><td class="${cls(all[i])}"><b>${fmtPt(all[i])}</b></td><td class="yen ${cls(all[i])}">${fmtYen(yen(all[i]))}</td></tr>`).join('');
   $('totalTable').innerHTML=`<thead>${head}</thead><tbody>${body}</tbody>`;
 }
 $('chipFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.chips[i]=e.target.value===''?'':Number(e.target.value); unsample(); renderTotal(); save(); });
 $('resetAll').addEventListener('click',()=>{ $('resetConfirm').hidden=false; });
 $('resetNo').addEventListener('click',()=>{ $('resetConfirm').hidden=true; });
-$('resetYes').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.seat=idSeat(N()); $('resetConfirm').hidden=true; unsample(); update(); });
-$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.seat=idSeat(N()); S.names=['','','','']; S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
+$('resetYes').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.seat=defaultSeat(); $('resetConfirm').hidden=true; unsample(); update(); });
+$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
 
 /* ---------- 撮影読み取り ---------- */
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
@@ -319,7 +347,7 @@ async function runScan(src){
     const sol=SegOCR.solve(res.roles,ks,target);
     if(sol){
       ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
-        vals[k]={neg:v<0,v:String(Math.abs(v))};
+        vals[k]={neg:v<0,v:String(Math.abs(v)*100)};
         const readTxt=g&&g.value!=null?String(Math.abs(g.value)):'';
         if(sol[k].filled) note[k]='読めなかったため合計から計算';
         else if(!g||g.value==null||(Math.abs(g.value)!==Math.abs(v)&&Math.abs(g.value)!==Math.abs(v)*10)) note[k]='合計に合うように補正';
@@ -331,9 +359,9 @@ async function runScan(src){
       ks.forEach(k=>{ const g=res.roles[k];
         const v=g&&g.value!=null&&g.digits.length>=(div===10?4:3)?g.value/div:null;
         const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
-        vals[k]=ok?{neg:v<0,v:String(Math.abs(v))}:{neg:!!(g&&g.neg),v:''}; });
+        vals[k]=ok?{neg:v<0,v:String(Math.abs(v)*100)}:{neg:!!(g&&g.neg),v:''}; });
     }
-    scan={res,vals,raw,note,shooter:S.shooter!=null&&S.shooter<N()?S.shooter:0};
+    const st=seated(); scan={res,vals,raw,note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
     $('scanBox').hidden=false; renderScan(true);
     $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
@@ -353,17 +381,17 @@ function drawScan(){
 }
 function renderScan(redraw){
   if(!scan) return;
-  $('segShooter').innerHTML=names().map((_,i)=>`<button type="button" data-v="${i}">${esc(nameOf(i))}</button>`).join('');
+  $('segShooter').innerHTML=seated().map(i=>`<button type="button" data-v="${i}">${esc(nameOf(i))}</button>`).join('');
   setSeg($('segShooter'),scan.shooter);
   if(!$('scanRows').contains(document.activeElement)){
     $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=v.v==='';
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
       <div class="role">${ROLE_LBL[k]}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:(scan.note[k]?`・<span class="raw">${scan.note[k]}（読み取り「${esc(scan.raw[k]||'—')}」）</span>`:'')}</div>
-      <div class="pin"><button type="button" class="sign ${v.neg?'neg':''}" data-rs="${k}" aria-label="プラスとマイナスを切り替え">${v.neg?'−':'+'}</button><input id="scan_${k}" data-r="${k}" inputmode="numeric" value="${v.v}" placeholder="?" aria-label="${esc(nameOf(p))}の持ち点（百点単位）"><span class="zz">00</span></div></div>`; }).join('');
+      <div class="pin"><button type="button" class="sign ${v.neg?'neg':''}" data-rs="${k}" aria-label="プラスとマイナスを切り替え">${v.neg?'−':'+'}</button><input id="scan_${k}" data-r="${k}" inputmode="numeric" value="${v.v}" placeholder="?" aria-label="${esc(nameOf(p))}の持ち点"><span class="zz">点</span></div></div>`; }).join('');
   }
   if(redraw!==false) drawScan();
   const ks=Object.keys(roleOffs()), filled=ks.filter(k=>scan.vals[k].v!=='');
-  const sum=ks.reduce((a,k)=>a+(scan.vals[k].v===''?0:(scan.vals[k].neg?-1:1)*Number(scan.vals[k].v)*100),0), target=S.rules.start*N(), el=$('scanCheck');
+  const sum=ks.reduce((a,k)=>a+(scan.vals[k].v===''?0:(scan.vals[k].neg?-1:1)*Number(scan.vals[k].v)),0), target=S.rules.start*N(), el=$('scanCheck');
   if(filled.length<ks.length){ el.className='check ng'; el.innerHTML=`<span>読めなかった人が${ks.length-filled.length}人います</span><span>赤い欄を入力してください</span>`; }
   else if(sum===target){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${fmtPts(Math.abs(sum-target))}点${sum>target?'多い':'足りない'}・写真と見比べてください</span>`; }

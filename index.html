@@ -112,6 +112,12 @@
   <section class="view" id="v-players" hidden>
     <div class="sec">
       <h2>メンバー<span class="sub">席（東南西北）は半荘ごとに対局画面で決めます</span></h2>
+      <div class="panel" style="margin-bottom:10px">
+        <div class="row"><span class="lbl">メンバーの人数</span>
+          <div class="seg" id="segMembers"></div>
+          <span class="hint" id="memHint"></span>
+        </div>
+      </div>
       <div class="panel" id="seatList"></div>
       <p class="hint" style="margin:8px 2px 0">名前は途中で変えても記録はそのまま残ります。</p>
     </div>
@@ -122,7 +128,7 @@
     <div class="sec">
       <h2 id="nextTitle">半荘の結果を入力</h2>
       <div class="panel">
-        <div class="row"><span class="hint">各メンバーの今回の席（東＝起家）をタップしてから持ち点を入れてください。席は次の半荘に引き継がれます。</span></div>
+        <div class="row"><span class="hint">各メンバーの今回の席（東＝起家）をタップしてから、持ち点を点数のまま（例：25000）入れてください。席は次の半荘に引き継がれます。回し打ちのときは「抜」で抜け番を選べます。</span></div>
         <div class="row">
           <div class="camrow">
             <label class="btn cam" for="camIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>卓の点数表示を撮影</label>

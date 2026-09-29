@@ -102,17 +102,22 @@ button{cursor:pointer}
 .wind{font-family:var(--serif);font-size:12px;color:var(--muted);margin-left:6px}
 .tieNote{font-size:11px;color:var(--warn);margin-left:6px;font-weight:700}
 .num-b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--felt-soft);color:var(--felt);font-family:var(--mono);font-weight:600;font-size:13px;flex:none}
-.entry{display:grid;grid-template-columns:1fr auto;grid-template-areas:"nm pin" "wd pin";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
+.entry{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"nm nm" "wd pin";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
 .entry .nm{grid-area:nm}.entry .winds{grid-area:wd}.entry .pin{grid-area:pin}
 .entry:first-of-type{border-top:0}
 .entry .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .nm small{display:block;font-size:11px;color:var(--muted);font-weight:500}
-.pin{display:flex;align-items:center;height:46px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);overflow:hidden;width:170px}
+.pin{display:flex;align-items:center;height:46px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);overflow:hidden;width:100%;min-width:0}
 .pin:focus-within{border-color:var(--felt)}
 .pin .sign{width:40px;height:100%;border:0;border-right:1px solid var(--line);background:transparent;font-family:var(--mono);font-size:18px;font-weight:600}
 .pin .sign.neg{color:var(--shu);background:var(--shu-soft)}
 .pin input{border:0;background:transparent;outline:none;text-align:right;width:100%;min-width:0;font-family:var(--mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;padding-right:2px}
-.pin .zz{font-family:var(--mono);font-size:19px;color:var(--muted);padding-right:10px}
+.pin .zz{font-size:13px;color:var(--muted);padding:0 10px 0 4px}
+.pin.outpin{justify-content:center;font-size:13px;font-weight:700;color:var(--muted);background:transparent;border-style:dashed}
+.entry.isout .nm{color:var(--muted)}
+.wb.nuke{font-family:var(--sans);font-size:12px}
+.wb.nuke[aria-pressed="true"]{background:var(--muted);color:var(--surface);border-color:var(--muted);box-shadow:none}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
 .check{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;border-radius:10px;padding:9px 12px;background:var(--surface2)}
 .check.ok{background:var(--felt-soft);color:var(--felt)}
 .check.ng{background:var(--shu-soft);color:var(--shu)}
@@ -137,7 +142,7 @@ button{cursor:pointer}
 .btn.cam svg{width:20px;height:20px;flex:none}
 .scan{margin-top:12px;border:1px solid var(--felt);border-radius:12px;padding:12px;background:var(--surface2);display:grid;gap:10px}
 .scan canvas{width:100%;height:auto;border-radius:8px;background:#000;display:block}
-.scan .entry{grid-template-areas:"nm pin" "rl pin"}
+.scan .entry{grid-template-columns:minmax(0,1fr) 160px;grid-template-areas:"nm pin" "rl pin"}
 .scan .entry .role{grid-area:rl;font-size:12px;color:var(--muted)}
 .scan .entry.miss .pin{border-color:var(--shu);background:var(--shu-soft)}
 .scan .entry .raw{font-family:var(--mono);color:var(--warn)}
@@ -190,7 +195,8 @@ nav.tabs button[aria-current="page"] .k{color:var(--shu)}
 .warnline{font-size:12px;color:var(--warn);margin-top:6px}
 @media (max-width:420px){
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .pin{width:150px}
+  .wb{width:30px;height:32px}
+  .scan .entry{grid-template-columns:minmax(0,1fr) 140px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
