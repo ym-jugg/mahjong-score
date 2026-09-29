@@ -1,13 +1,15 @@
-# 麻雀スコア帳（ドラフト）
+# 麻雀スコア帳
 
-静的ファイルだけで動くPWAです。このフォルダをそのままHTTPSのホスティングに置けば、スマホで「ホーム画面に追加」できます。
+半荘ごとの持ち点を入れると、ウマ・オカ・チップ・同点処理込みでptと金額を計算するPWA。
+自動卓（AMOS系）の点数表示を撮影して読み取る機能付き（端末内で処理）。
 
-- GitHub Pages / Netlify / Cloudflare Pages などに `index.html` ごとアップロード
-- ローカル確認: `python3 -m http.server 8000` → http://localhost:8000
-- データは端末のブラウザ（localStorage）に保存されます。オフラインでも動作します。
+## ファイル
+- `index.html` … 画面の骨組み
+- `style.css` … 見た目
+- `app.js` … ルール・計算・画面の動き（データは端末の localStorage に保存）
+- `ocr.js` … 自動卓の7セグ表示の読み取り
+- `sw.js` … オフライン対応（ネット優先、つながらないときはキャッシュ）
+- `manifest.webmanifest` / `icon-*.png` … ホーム画面アプリ用の設定
 
-ファイル
-- index.html … アプリ本体（HTML/CSS/JSを1ファイルに収めています）
-- manifest.webmanifest … アプリ名・アイコン・表示モード
-- sw.js … オフライン用キャッシュ（更新時は CACHE のバージョン名を上げてください）
-- icon-192.png / icon-512.png … ホーム画面アイコン
+## 公開
+GitHub Pages（Settings → Pages → main / root）。
