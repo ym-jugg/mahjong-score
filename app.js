@@ -29,24 +29,45 @@ function sample(){
       {id:2,seat:[1,3,2,0],pts:[22300,-3400,47900,33200],t:Date.now()-2700000}
     ]};
 }
+// ---- 保存場所：この端末だけのデータ（KEY）と、共有の卓ごとのキャッシュ（KEY:t:卓ID）----
+const ACTIVE=KEY+':active', tKey=id=>KEY+':t:'+id;
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} }
+function loadJSON(k){ try{ return JSON.parse(lsGet(k)); }catch(e){ return null; } }
+function blankTable(id,name){ return {rules:defaults(4),names:[],chips:[],members:4,view:'game',draft:{},games:[],cloud:{id,name:name||''}}; }
+const params=new URLSearchParams(location.search);
+const VIEW_TOKEN=params.get('view');           // 閲覧専用リンク
+const RO=!!VIEW_TOKEN;
 let S;
-try{ S=JSON.parse(localStorage.getItem(KEY)); }catch(e){ S=null; }
-if(!S||!S.rules) S=sample();
-S.draft=S.draft||{};
-S.rules.tie=S.rules.tie||'kicha';
-if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
-// 旧形式（起家だけ保存）からの移行
-S.games.forEach(g=>{ if(!g.seat){ const n=g.pts.length,d=g.dealer||0; g.seat=g.pts.map((_,p)=>(p-d+n)%n); delete g.dealer; } });
-// メンバーは卓の人数〜6人。卓に入らない人は席が -1（抜け番）
-S.members=Math.min(6,Math.max(S.rules.players,S.members||S.names.filter(x=>x!=null).length||S.rules.players));
-while(S.names.length<6) S.names.push('');
+function normalize(){
+  if(!S||!S.rules) S=sample();
+  S.draft=S.draft||{}; S.games=S.games||[]; S.names=S.names||[]; S.chips=S.chips||[];
+  S.rules.tie=S.rules.tie||'kicha';
+  if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
+  // 旧形式（起家だけ保存）からの移行
+  S.games.forEach(g=>{ if(!g.seat){ const n=g.pts.length,d=g.dealer||0; g.seat=g.pts.map((_,p)=>(p-d+n)%n); delete g.dealer; } });
+  // メンバーは卓の人数〜6人。卓に入らない人は席が -1（抜け番）
+  S.members=Math.min(6,Math.max(S.rules.players,S.members||S.names.filter(x=>x).length||S.rules.players));
+  while(S.names.length<6) S.names.push('');
+  if(!validSeat(S.seat)) S.seat=defaultSeat();
+  // 持ち点の入力は点数そのまま（25000）。以前の百点単位の入力途中データは消す
+  if(S.draftV!==2){ S.draft={}; S.draftV=2; }
+}
 function defaultSeat(){ return idSeat(S.members).map(i=>i<S.rules.players?i:-1); }
 function validSeat(a){ if(!Array.isArray(a)||a.length!==S.members) return false; const n=S.rules.players;
   return a.every(w=>w===-1||(w>=0&&w<n))&&idSeat(n).every(w=>a.filter(x=>x===w).length<=1); }
-if(!validSeat(S.seat)) S.seat=defaultSeat();
-// 持ち点の入力は点数そのまま（25000）。以前の百点単位の入力途中データは消す
-if(S.draftV!==2){ S.draft={}; S.draftV=2; }
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+if(RO){ S=blankTable('',''); S.view='total'; }
+else {
+  const act=Cloud.configured?lsGet(ACTIVE):null;
+  S=act?(loadJSON(tKey(act))||blankTable(act)):loadJSON(KEY);
+  if(act&&S&&!S.cloud) S.cloud={id:act,name:''};
+}
+normalize();
+function save(){
+  if(RO) return;
+  lsSet(S.cloud?tKey(S.cloud.id):KEY,JSON.stringify(S));
+  if(S.cloud) Sync.pushState();
+}
 
 const $=id=>document.getElementById(id);
 const N=()=>S.rules.players;
@@ -131,7 +152,12 @@ function renderHeader(){
     `<span class="chip ${r.kuitan?'on':'off'}">喰いタン</span>`,
     `<span class="chip ${r.atozuke?'on':'off'}">後付け</span>`
   ].join('');
-  $('sampleBanner').hidden=!S.sample;
+  $('sampleBanner').hidden=!S.sample||RO;
+  const cs=$('cloudState');
+  if(RO){ cs.hidden=false; cs.className='cloudbar ro'; cs.innerHTML=`<b>閲覧専用</b>${S.viewName?`「${esc(S.viewName)}」`:''}・自動で更新されます${S.viewErr?`<span class="err">${esc(S.viewErr)}</span>`:''}`; }
+  else if(S.cloud){ const p=Sync.pendingCount(); cs.hidden=false; cs.className='cloudbar'+(p?' warn':'');
+    cs.innerHTML=`<b>共有中</b>「${esc(S.cloud.name||'卓')}」・${p?`未送信${p}件（通信が戻ると送ります）`:(Sync.online()?'同期しています':'オフライン')}`; }
+  else cs.hidden=true;
 }
 
 /* ---------- rules ---------- */
@@ -273,11 +299,13 @@ $('saveGame').addEventListener('click',()=>{
   const pts=idSeat(M()).map(p=>S.seat[p]>=0?parseDraft(p):null);
   if(seated().some(p=>pts[p]==null)) return;
   unsample();
-  const id=(S.games.reduce((m,g)=>Math.max(m,g.id),0))+1;
+  const id=S.cloud?uuid():(S.games.reduce((m,g)=>Math.max(m,Number(g.id)||0),0))+1;
   const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
-  S.games.push({id,seat:S.seat.slice(),pts,t:Date.now(),...(Object.keys(tobi).length?{tobi}:{})});
+  const game={id,seat:S.seat.slice(),pts,t:Date.now(),...(Object.keys(tobi).length?{tobi}:{})};
+  S.games.push(game);
   freshId=id; S.draft={};
   blur(); update();
+  if(S.cloud) Sync.addGame(game);
 });
 
 /* ---------- history ---------- */
@@ -289,16 +317,16 @@ function renderGames(){
     const no=S.games.length-ri, c=calc(g), dealer=g.seat.indexOf(0);
     const rows=c.order.map(p=>`<div class="r"><span class="tile sm">${RANKK[c.rank[p]]}</span><span>${esc(nameOf(p))}<span class="wind">${WINDS[g.seat[p]]}</span>${c.tied.has(p)?'<span class="tieNote">同点</span>':''}${c.tobi.some(([x])=>x===p)?'<span class="tieNote">飛び</span>':''}</span><span class="raw">${fmtPts(g.pts[p])}</span><span class="pt ${cls(c.score[p])}">${fmtPt(c.score[p])}</span></div>`).join('');
     const tm=new Date(g.t); const hm=tm.getHours()+':'+String(tm.getMinutes()).padStart(2,'0');
-    return `<article class="game ${g.id===freshId?'fresh':''}"><header><b>第${no}半荘</b><span class="hint">起家 ${esc(nameOf(dealer))}・${hm}　<button type="button" class="btn danger" style="padding:2px 8px;font-size:11px" data-del="${g.id}">削除</button></span></header>
-    <div class="res">${rows}</div>${c.out.length?`<div class="hint" style="margin-top:4px">抜け番：${c.out.map(i=>esc(nameOf(i))).join('、')}</div>`:''}${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${confirmDel===g.id?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
+    return `<article class="game ${String(g.id)===String(freshId)?'fresh':''}"><header><b>第${no}半荘</b><span class="hint">起家 ${esc(nameOf(dealer))}・${hm}　<button type="button" class="btn danger ro-hide" style="padding:2px 8px;font-size:11px" data-del="${g.id}">削除</button></span></header>
+    <div class="res">${rows}</div>${c.out.length?`<div class="hint" style="margin-top:4px">抜け番：${c.out.map(i=>esc(nameOf(i))).join('、')}</div>`:''}${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${String(confirmDel)===String(g.id)?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
   }).join('');
   freshId=null;
 }
 $('gameList').addEventListener('click',e=>{
   const d=e.target.closest('[data-del]'), y=e.target.closest('[data-delyes]'), no=e.target.closest('[data-delno]');
-  if(d){ confirmDel=Number(d.dataset.del); renderGames(); }
+  if(d){ confirmDel=d.dataset.del; renderGames(); }
   if(no){ confirmDel=null; renderGames(); }
-  if(y){ S.games=S.games.filter(g=>g.id!==Number(y.dataset.delyes)); confirmDel=null; unsample(); update(); }
+  if(y){ const id=y.dataset.delyes; S.games=S.games.filter(g=>String(g.id)!==id); confirmDel=null; unsample(); update(); if(S.cloud) Sync.deleteGame(id); }
 });
 
 /* ---------- totals ---------- */
@@ -312,7 +340,7 @@ function renderTotal(){
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   if(!$('chipFields').contains(document.activeElement)){
     $('chipFields').className=n===3?'grid3':'grid4';
-    $('chipFields').innerHTML=names().map((_,i)=>`<div><div class="mini">${esc(nameOf(i))}</div><label class="field"><input id="chip${i}" data-i="${i}" inputmode="numeric" value="${S.chips[i]??''}" aria-label="${esc(nameOf(i))}のチップ枚数"><span class="unit">枚</span></label></div>`).join('');
+    $('chipFields').innerHTML=names().map((_,i)=>`<div><div class="mini">${esc(nameOf(i))}</div><label class="field"><input id="chip${i}" data-i="${i}" ${RO?'disabled':''} inputmode="numeric" value="${S.chips[i]??''}" aria-label="${esc(nameOf(i))}のチップ枚数"><span class="unit">枚</span></label></div>`).join('');
   }
   const cs=S.chips.reduce((a,b)=>a+(Number(b)||0),0), ct=r.chipInit*n, el=$('chipCheck');
   if(cs===ct){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${cs}</span>枚</span><span>一致しています</span>`; }
@@ -408,15 +436,223 @@ $('scanApply').addEventListener('click',()=>{
   $('entryList').scrollIntoView({behavior:'smooth',block:'start'});
 });
 
+/* ---------- 共有（Googleログイン・卓の同期） ---------- */
+function uuid(){ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{ const r=Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); }); }
+// キーの順番に左右されない比較用の文字列
+function canon(v){ if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
+  if(v&&typeof v==='object') return '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+  return JSON.stringify(v===undefined?null:v); }
+const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat});
+const Sync=(function(){
+  let lastShared=null, timer=null, unsub=null, user=null, loaded=false, msg='', members=[], tables=null, busy=false;
+  const pk=()=>tKey(S.cloud.id)+':pending';
+  const pending=()=>S.cloud?(loadJSON(pk())||[]):[];
+  const setPending=a=>{ lsSet(pk(),a.length?JSON.stringify(a):null); renderHeader(); };
+  const gameData=g=>{ const d=Object.assign({},g); delete d.id; return d; };
+  const displayName=()=>user?(user.user_metadata&&(user.user_metadata.full_name||user.user_metadata.name))||user.email:'';
+  function pushState(){
+    if(!S.cloud||RO||!user) return;
+    if(canon(sharedOf(S))===lastShared) return;
+    clearTimeout(timer);
+    timer=setTimeout(async()=>{ const snap=sharedOf(S), c=canon(snap);
+      try{ await Cloud.saveState(S.cloud.id,snap); lastShared=c; S.cloud.dirty=false; }catch(e){ S.cloud.dirty=true; }
+      renderHeader(); },700);
+  }
+  async function flush(){
+    if(!S.cloud||!user) return;
+    const rest=[];
+    for(const op of pending()){
+      try{ if(op.op==='add') await Cloud.addGame(S.cloud.id,op.id,op.data,user.id); else await Cloud.deleteGame(op.id); }
+      catch(e){ if(!/duplicate key/i.test(e.message)) rest.push(op); }
+    }
+    setPending(rest);
+    if(S.cloud.dirty||canon(sharedOf(S))!==lastShared) pushState();
+  }
+  function addGame(g){ setPending(pending().concat({op:'add',id:g.id,data:gameData(g)})); flush(); }
+  function deleteGame(id){ setPending(pending().filter(o=>!(o.op==='add'&&o.id===id)).concat({op:'del',id})); flush(); }
+  function applyTable(row){
+    if(!S.cloud||row.id!==S.cloud.id) return;
+    Object.assign(S.cloud,{name:row.name,invite:row.invite_token,viewTok:row.view_token,owner:row.created_by});
+    const st=row.state||{};
+    if(st.rules&&canon(sharedOf(st))!==lastShared&&!S.cloud.dirty){
+      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat});
+      normalize(); lastShared=canon(sharedOf(S));
+    }
+  }
+  function applyGame(row){
+    if(!S.cloud||row.table_id&&row.table_id!==S.cloud.id) return;
+    const i=S.games.findIndex(g=>String(g.id)===String(row.id));
+    if(row.deleted){ if(i>=0) S.games.splice(i,1); }
+    else { const g=Object.assign({},row.data,{id:row.id}); if(i>=0) S.games[i]=g; else S.games.push(g); }
+    S.games.sort((a,b)=>(a.t||0)-(b.t||0));
+  }
+  async function open(id){
+    const r=await Cloud.fetchTable(id);
+    if(!r.table){ msg='この卓は見つからないか、参加していません'; toLocal(); return; }
+    if(S.cloud&&S.cloud.id!==id) return;
+    const pend=pending();
+    applyTable(Object.assign({},r.table,{state:(S.cloud.dirty?{}:r.table.state)}));
+    S.games=r.games.map(x=>Object.assign({},x.data,{id:x.id}));
+    // まだ送れていない自分の記録は残す
+    pend.forEach(o=>{ if(o.op==='add'&&!S.games.some(g=>g.id===o.id)) S.games.push(Object.assign({},o.data,{id:o.id})); if(o.op==='del') S.games=S.games.filter(g=>g.id!==o.id); });
+    S.games.sort((a,b)=>(a.t||0)-(b.t||0));
+    members=r.members;
+    if(unsub) unsub();
+    unsub=Cloud.subscribe(id,row=>{ applyTable(row); update(); },row=>{ applyGame(row); update(); });
+    update(); flush();
+  }
+  function switchTo(id,name){
+    if(unsub){ unsub(); unsub=null; }
+    lsSet(ACTIVE,id);
+    S=loadJSON(tKey(id))||blankTable(id,name); if(!S.cloud) S.cloud={id,name:name||''};
+    normalize(); lastShared=null; members=[];
+    show('share'); update();
+    return open(id).catch(e=>{ msg=e.message; renderShare(); });
+  }
+  function toLocal(){
+    if(unsub){ unsub(); unsub=null; }
+    lsSet(ACTIVE,null); S=loadJSON(KEY)||sample(); normalize(); lastShared=null; update();
+  }
+  async function refreshTables(){ try{ tables=await Cloud.listTables(); }catch(e){ tables=[]; msg=e.message; } renderShare(); }
+  async function afterLogin(){
+    const jt=lsGet(KEY+':join');
+    if(jt){ lsSet(KEY+':join',null);
+      try{ const tid=await Cloud.join(jt,displayName()); msg='卓に参加しました'; await switchTo(tid); }
+      catch(e){ msg=e.message; }
+    }
+    if(S.cloud) open(S.cloud.id).catch(e=>{ msg=e.message; renderShare(); });
+    refreshTables();
+  }
+  async function init(){
+    if(!Cloud.configured||RO) return;
+    document.body.classList.add('cloud-on');
+    const need=S.cloud||lsGet(KEY+':join')||params.has('code');
+    if(need) await start();
+  }
+  async function start(){
+    if(loaded) return; loaded=true;
+    try{
+      await Cloud.load();
+      const s=await Cloud.session(); user=s?s.user:null;
+      if(params.has('code')||params.has('join')) history.replaceState(null,'',location.pathname);
+      Cloud.onAuth(s=>{ const was=user&&user.id; user=s?s.user:null; if(user&&user.id!==was) afterLogin(); renderShare(); renderHeader(); });
+      if(user) await afterLogin();
+    }catch(e){ loaded=false; msg=e.message; }
+    renderShare(); renderHeader();
+  }
+  addEventListener('online',()=>{ flush(); renderHeader(); });
+  addEventListener('offline',()=>renderHeader());
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.cloud&&user) open(S.cloud.id).catch(()=>{}); });
+  return {init,start,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
+    pendingCount:()=>pending().length, online:()=>navigator.onLine!==false,
+    get user(){return user}, get members(){return members}, get tables(){return tables}, get msg(){return msg}, set msg(v){msg=v},
+    get busy(){return busy}, set busy(v){busy=v}, displayName};
+})();
+const baseUrl=()=>location.origin+location.pathname;
+function copyText(txt,btn){
+  const done=()=>{ const o=btn.textContent; btn.textContent='コピーしました'; setTimeout(()=>btn.textContent=o,1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,()=>selectFallback(btn));
+  else selectFallback(btn);
+}
+function selectFallback(btn){ const inp=btn.parentElement.querySelector('input'); if(inp){ inp.focus(); inp.select(); } }
+function renderShare(){
+  const box=$('shareBox'); if(!box||$('v-share').hidden) return;
+  const u=Sync.user, m=Sync.msg?`<div class="check ${/参加しました|作りました|作り直しました/.test(Sync.msg)?'ok':'ng'}" style="margin:0">${esc(Sync.msg)}</div>`:'';
+  if(!Cloud.configured){ box.innerHTML='<div class="panel empty">共有機能はまだ設定されていません。</div>'; return; }
+  if(!u){
+    const jt=lsGet(KEY+':join');
+    box.innerHTML=`${m}<div class="panel"><div class="row"><b>${jt?'招待された卓に参加するには、Googleでログインしてください。':'Googleでログインすると、卓のデータをメンバーで共有できます。'}</b>
+      <span class="hint">ログインした人どうしで、ルール・メンバー・記録・チップが同期されます。誰が入力しても全員の画面にすぐ反映されます。</span></div>
+      <div class="row"><button type="button" class="btn gbtn" data-act="login">Googleでログイン</button></div></div>`;
+    Sync.start(); return;
+  }
+  const c=S.cloud, owner=c&&c.owner===u.id;
+  const tables=Sync.tables;
+  const list=tables==null?'<div class="hint">読み込み中…</div>':tables.length?tables.map(t=>`<div class="trow"><div><b>${esc(t.name)}</b><div class="hint">${new Date(t.updated_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}更新</div></div>${c&&c.id===t.id?'<span class="chip on">表示中</span>':`<button type="button" class="btn ghost" data-act="open" data-id="${t.id}">開く</button>`}</div>`).join(''):'<div class="hint">まだ参加している卓はありません。</div>';
+  const cur=c?`<div class="panel">
+      <div class="row"><span class="lbl">表示中の卓</span>
+        <div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="tableName" value="${esc(c.name||'')}" maxlength="30" aria-label="卓の名前"></label><button type="button" class="btn ghost" data-act="rename">名前を保存</button></div>
+        <span class="hint">参加者：${Sync.members.map(x=>esc(x.display_name||'名前なし')).join('、')||'—'}</span></div>
+      <div class="row"><span class="lbl">招待リンク（ログインして一緒に入力できる）</span>
+        <div class="linkrow"><input readonly value="${c.invite?esc(baseUrl()+'?join='+c.invite):''}" aria-label="招待リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button></div></div>
+      <div class="row"><span class="lbl">閲覧リンク（ログイン不要・見るだけ）</span>
+        <div class="linkrow"><input readonly value="${c.viewTok?esc(baseUrl()+'?view='+c.viewTok):''}" aria-label="閲覧リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button></div>
+        <span class="hint">リンクを知っている人は誰でも開けます。広まってしまったときは作り直してください。</span></div>
+      <div class="row actions" style="margin-top:0">
+        ${owner?'<button type="button" class="btn ghost" data-act="reset">リンクを作り直す</button>':''}
+        <button type="button" class="btn ghost" data-act="local">この端末だけのデータに切り替え</button>
+        <button type="button" class="btn danger" data-act="leave">卓から抜ける</button></div>
+      <div class="confirm" id="leaveConfirm" hidden><span>この卓から抜けます。もう一度入るには招待リンクが必要です。</span><button type="button" class="btn danger" data-act="leaveYes">抜ける</button><button type="button" class="btn ghost" data-act="leaveNo">やめる</button></div>
+    </div>`
+    :`<div class="panel"><div class="row"><b>今はこの端末だけのデータを使っています。</b>
+        <span class="hint">今のルール・メンバー・記録をもとに共有の卓を作れます。この端末のデータはそのまま残ります。${S.sample?'（サンプルの記録とメンバーは入れずに作ります）':''}</span></div>
+      <div class="row"><div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="newTableName" placeholder="卓の名前（例：金曜の会）" maxlength="30" aria-label="新しい卓の名前"></label><button type="button" class="btn" style="width:auto" data-act="create" ${Sync.busy?'disabled':''}>共有の卓を作る</button></div></div></div>`;
+  box.innerHTML=`${m}${cur}
+    <div class="sec"><h2 style="margin-top:6px">参加している卓</h2><div class="panel">${list}</div></div>
+    <div class="panel"><div class="toggle"><span class="hint">${esc(u.email||'')} でログイン中</span><button type="button" class="btn ghost" data-act="logout">ログアウト</button></div></div>`;
+}
+$('shareBox').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]'); if(!b) return; const act=b.dataset.act;
+  Sync.msg='';
+  try{
+    if(act==='login') await Cloud.signIn();
+    if(act==='logout'){ await Cloud.signOut(); Sync.toLocal(); }
+    if(act==='copy') copyText(b.parentElement.querySelector('input').value,b);
+    if(act==='open') await Sync.switchTo(b.dataset.id);
+    if(act==='local'){ Sync.toLocal(); show('share'); }
+    if(act==='rename'){ const n=$('tableName').value.trim()||'麻雀卓'; await Cloud.rename(S.cloud.id,n); S.cloud.name=n; Sync.msg=''; Sync.refreshTables(); update(); }
+    if(act==='reset'){ const t=await Cloud.resetLinks(S.cloud.id); Object.assign(S.cloud,{invite:t.invite_token,viewTok:t.view_token}); Sync.msg='リンクを作り直しました。前のリンクは使えなくなりました'; save(); }
+    if(act==='leave'){ $('leaveConfirm').hidden=false; return; }
+    if(act==='leaveNo'){ $('leaveConfirm').hidden=true; return; }
+    if(act==='leaveYes'){ const id=S.cloud.id; await Cloud.leave(id,Sync.user.id); lsSet(tKey(id),null); Sync.toLocal(); Sync.refreshTables(); show('share'); }
+    if(act==='create'){
+      if(Sync.busy) return;
+      const name=($('newTableName').value||'').trim()||'麻雀卓';
+      Sync.busy=true; renderShare();
+      const base=S.sample?Object.assign({},S,{names:['','','','','',''],chips:[],games:[]}):S;
+      const games=base.games.map(g=>{ const d=Object.assign({},g); delete d.id; return {id:uuid(),data:d}; });
+      const t=await Cloud.createTable(name,sharedOf(base),games,Sync.displayName());
+      Sync.busy=false; Sync.msg='共有の卓を作りました。招待リンクをメンバーに送ってください';
+      await Sync.switchTo(t.id,t.name); Sync.refreshTables();
+    }
+  }catch(err){ Sync.busy=false; Sync.msg=err.message; }
+  renderShare(); renderHeader();
+});
+
+/* ---------- 閲覧専用リンク ---------- */
+async function viewLoop(){
+  try{
+    const d=await Cloud.view(VIEW_TOKEN);
+    if(!d){ S.viewErr='このリンクは無効になっています'; }
+    else{
+      const st=d.state||{};
+      Object.assign(S,{rules:st.rules||S.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,
+        games:(d.games||[]).map(x=>Object.assign({},x.data,{id:x.id})).sort((a,b)=>(a.t||0)-(b.t||0)),viewName:d.name,viewErr:''});
+      normalize();
+    }
+  }catch(e){ S.viewErr='読み込めませんでした（通信を確認してください）'; }
+  update();
+  setTimeout(viewLoop,document.visibilityState==='visible'?15000:60000);
+}
+
 /* ---------- nav ---------- */
 function show(v){
   S.view=v;
-  ['rules','players','game','total'].forEach(k=>$('v-'+k).hidden=k!==v);
+  if(RO&&(v==='rules'||v==='players'||v==='share')) v='total';
+  S.view=v;
+  ['rules','players','game','total','share'].forEach(k=>$('v-'+k).hidden=k!==v);
+  if(v==='share') renderShare();
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   save();
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
 
-function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); save(); }
-show(S.view||'game'); update();
+function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
+if(RO){ document.body.classList.add('ro'); show('total'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
+else {
+  const jt=params.get('join'); if(jt&&Cloud.configured){ lsSet(KEY+':join',jt); S.view='share'; }
+  show(S.view==='share'&&!Cloud.configured?'game':(S.view||'game')); update();
+  Sync.init();
+}
 })();

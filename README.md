@@ -13,3 +13,17 @@
 
 ## 公開
 GitHub Pages（Settings → Pages → main / root）。
+
+## 共有機能（Googleログイン・メンバーで同期）
+Supabase（データベース＋ログイン）を使います。設定するまでは「共有」タブは出ず、今まで通り端末だけで動きます。
+
+1. Supabase でプロジェクトを作る（Region は Tokyo）
+2. SQL Editor に `supabase/schema.sql` を貼り付けて Run
+3. Google Cloud で OAuth クライアント（ウェブ アプリケーション）を作り、承認済みリダイレクト URI に `https://<プロジェクトID>.supabase.co/auth/v1/callback` を登録
+4. Supabase の Authentication → Sign In / Providers → Google に Client ID と Client Secret を入れて有効化
+5. Supabase の Authentication → URL Configuration の Site URL と Redirect URLs に `https://ym-jugg.github.io/mahjong-score/` を登録
+6. `config.js` に Project URL と anon（publishable）key を入れる
+
+- `cloud.js` … Supabase とのやり取り
+- `lib/supabase.js` … supabase-js（MIT License、`lib/supabase.LICENSE`）
+- 閲覧リンク `?view=…` はログイン不要で見るだけ、招待リンク `?join=…` はログインして参加

@@ -22,6 +22,7 @@
     <div class="brand"><h1>麻雀スコア帳<small id="modeLbl"></small></h1></div>
     <div class="chips" id="ruleChips"></div>
   </header>
+  <div id="cloudState" class="cloudbar" hidden></div>
   <div id="sampleBanner" class="banner" hidden>
     <span>表示中のメンバーと記録はサンプルです。</span>
     <button type="button" id="startFresh">新しい卓を始める</button>
@@ -125,7 +126,7 @@
 
   <!-- 対局 -->
   <section class="view" id="v-game" hidden>
-    <div class="sec">
+    <div class="sec ro-hide">
       <h2 id="nextTitle">半荘の結果を入力</h2>
       <div class="panel">
         <div class="row"><span class="hint">各メンバーの今回の席（東＝起家）をタップしてから、持ち点を点数のまま（例：25000）入れてください。席は次の半荘に引き継がれます。回し打ちのときは「抜」で抜け番を選べます。</span></div>
@@ -177,7 +178,7 @@
       <h2>内訳</h2>
       <div class="panel"><div class="tw"><table id="totalTable"></table></div></div>
     </div>
-    <div class="sec">
+    <div class="sec ro-hide">
       <div class="panel">
         <div class="toggle"><span>記録をすべて消して新しい卓を始める</span><button type="button" class="btn danger" id="resetAll">リセット</button></div>
         <div class="confirm" id="resetConfirm" hidden>
@@ -188,16 +189,27 @@
       </div>
     </div>
   </section>
+
+  <!-- 共有 -->
+  <section class="view" id="v-share" hidden>
+    <div class="sec">
+      <h2>共有<span class="sub">Googleでログインしてメンバーと同じデータを使う</span></h2>
+      <div id="shareBox" style="display:grid;gap:12px"></div>
+    </div>
+  </section>
 </div>
 
 <nav class="tabs" aria-label="画面切り替え">
   <div class="in">
-    <button type="button" data-view="rules"><span class="k">則</span>ルール</button>
-    <button type="button" data-view="players"><span class="k">人</span>メンバー</button>
+    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール</button>
+    <button type="button" data-view="players" class="ro-hide"><span class="k">人</span>メンバー</button>
     <button type="button" data-view="game"><span class="k">局</span>対局</button>
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
+    <button type="button" data-view="share" class="ro-hide cloud-only"><span class="k">共</span>共有</button>
   </div>
 </nav>
+<script src="config.js"></script>
+<script src="cloud.js"></script>
 <script src="ocr.js"></script>
 <script src="app.js"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>

@@ -129,6 +129,17 @@ button{cursor:pointer}
 .btn.danger{background:transparent;color:var(--shu);border:1px solid var(--shu);width:auto;font-size:13px;padding:6px 12px;border-radius:9px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 
+/* 共有 */
+.cloudbar{margin-top:12px;font-size:12px;padding:7px 12px;border-radius:10px;background:var(--felt-soft);color:var(--felt);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.cloudbar.warn{background:var(--warn-soft);color:var(--warn)}
+.cloudbar.ro{background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.cloudbar .err{color:var(--shu);font-weight:700}
+.linkrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.linkrow input{height:40px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);padding:0 10px;font-family:var(--mono);font-size:12px;min-width:0;width:100%}
+.trow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:10px;border-top:1px solid var(--line)}
+.trow:first-child{border-top:0;padding-top:0}
+.trow:last-child{padding-bottom:0}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:8px}
 /* 飛び賞 */
 .tobi{display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;background:var(--warn-soft);border:1px solid var(--warn)}
 .tobi .q{font-size:13px;font-weight:700;color:var(--warn)}
@@ -187,7 +198,10 @@ tr.sum td{border-bottom:0;font-size:16px}
 
 /* nav */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav.tabs .in{max-width:720px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs .in{max-width:720px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+nav.tabs button.cloud-only{display:none}
+.cloud-on nav.tabs button.cloud-only{display:grid}
+.ro .ro-hide{display:none!important}
 nav.tabs button{border:0;background:transparent;padding:9px 4px 10px;display:grid;justify-items:center;gap:2px;font-size:11px;font-weight:700;color:var(--muted)}
 nav.tabs button .k{font-family:var(--serif);font-size:18px;line-height:1.1}
 nav.tabs button[aria-current="page"]{color:var(--felt)}
