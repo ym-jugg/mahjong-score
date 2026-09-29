@@ -124,6 +124,13 @@ button{cursor:pointer}
 .btn.danger{background:transparent;color:var(--shu);border:1px solid var(--shu);width:auto;font-size:13px;padding:6px 12px;border-radius:9px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 
+/* 飛び賞 */
+.tobi{display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;background:var(--warn-soft);border:1px solid var(--warn)}
+.tobi .q{font-size:13px;font-weight:700;color:var(--warn)}
+.tobi .q b{color:var(--ink)}
+.tobi .seg{margin-top:6px}
+.tobi .seg button:not([aria-pressed="true"]){background:var(--surface)}
+.tobiLine{font-size:12px;color:var(--warn);margin-top:4px}
 /* scan */
 .camrow{display:flex;gap:8px;flex-wrap:wrap}
 .btn.cam{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;flex:1 1 220px;font-size:15px;padding:11px 14px}

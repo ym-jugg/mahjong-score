@@ -18,7 +18,7 @@ const TIE_HINT={
 function defaults(n){
   return {players:n,rate:'1',start:n===4?25000:35000,ret:n===4?30000:40000,round:'gosha',tie:'kicha',
     uma:n===4?'10-30':'10',umaCustom:n===4?[30,10,-10,-30]:[15,0,-15],
-    chipInit:20,chipPt:2,kuitan:true,atozuke:true};
+    chipInit:20,chipPt:2,tobi:false,tobiPt:10,tobiAt:'neg',kuitan:true,atozuke:true};
 }
 const idSeat=n=>[...Array(n).keys()];
 function sample(){
@@ -34,6 +34,7 @@ try{ S=JSON.parse(localStorage.getItem(KEY)); }catch(e){ S=null; }
 if(!S||!S.rules) S=sample();
 S.draft=S.draft||{};
 S.rules.tie=S.rules.tie||'kicha';
+if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
 // 旧形式（起家だけ保存）からの移行
 S.games.forEach(g=>{ if(!g.seat){ const n=g.pts.length,d=g.dealer||0; g.seat=g.pts.map((_,p)=>(p-d+n)%n); delete g.dealer; } });
 function validSeat(a,n){ return Array.isArray(a)&&a.length===n&&idSeat(n).every(w=>a.includes(w)); }
@@ -57,6 +58,8 @@ function toPt(diff){
   return sg*v;
 }
 const fix=v=>Math.round(v*10)/10;
+const tobiPt=()=>S.rules.tobi?(Number(S.rules.tobiPt)||0):0;
+const isBust=v=>S.rules.tobiAt==='zero'?v<=0:v<0;
 
 /* 1半荘の計算：順位・同点処理・ウマ・オカ */
 function calc(g){
@@ -84,7 +87,11 @@ function calc(g){
   order.forEach(p=>{ if(topGroup.includes(p)) return; score[p]=fix(toPt(g.pts[p]-S.rules.ret)+shared[p]); others+=score[p]; });
   const topTotal=-others; let given=0;
   topGroup.forEach((p,k)=>{ score[p]=k<topGroup.length-1?fix(topTotal/topGroup.length):fix(topTotal-given); given+=score[p]; });
-  return {rank,score,order,tied};
+  // 飛び賞：飛んだ人から飛ばした人へ
+  const T=tobiPt(), tobi=[];
+  if(T&&g.tobi) Object.entries(g.tobi).forEach(([p,b])=>{ p=Number(p); if(b==null||b==='none') return; b=Number(b);
+    score[p]=fix(score[p]-T); score[b]=fix(score[b]+T); tobi.push([p,b]); });
+  return {rank,score,order,tied,tobi};
 }
 const fmtPt=v=>{ v=fix(v); const s=Number.isInteger(v)?String(Math.abs(v)):Math.abs(v).toFixed(1); return (v>0?'+':v<0?'−':'±')+s; };
 const cls=v=>v>0?'pos':v<0?'neg':'';
@@ -108,6 +115,7 @@ function renderHeader(){
     `<span class="chip">ウマ <b>${esc(umaTxt)}</b></span>`,
     `<span class="chip">同点 <b>${TIE_LBL[r.tie]}</b></span>`,
     `<span class="chip">チップ <b>${r.chipInit}</b>枚・1枚<b>${r.chipPt}</b>pt</span>`,
+    r.tobi?`<span class="chip">飛び賞 <b>${r.tobiPt}</b>pt</span>`:`<span class="chip off">飛び賞</span>`,
     `<span class="chip ${r.kuitan?'on':'off'}">喰いタン</span>`,
     `<span class="chip ${r.atozuke?'on':'off'}">後付け</span>`
   ].join('');
@@ -138,6 +146,11 @@ function renderRules(){
   if(document.activeElement!==$('inChipInit')) $('inChipInit').value=r.chipInit;
   if(document.activeElement!==$('inChipPt')) $('inChipPt').value=r.chipPt;
   $('chipHint').textContent=`1枚＝${fix(r.chipPt)}pt＝${(yen(Number(r.chipPt)||0)).toLocaleString('ja-JP')}円`;
+  $('swTobi').setAttribute('aria-checked',String(!!r.tobi));
+  $('tobiPtRow').hidden=!r.tobi; $('tobiAtRow').hidden=!r.tobi;
+  if(document.activeElement!==$('inTobiPt')) $('inTobiPt').value=r.tobiPt;
+  setSeg($('segTobiAt'),r.tobiAt);
+  $('tobiHint').textContent=`飛んだ人が−${fix(Number(r.tobiPt)||0)}pt（${fmtYen(-yen(Number(r.tobiPt)||0))}）、飛ばした人が+${fix(Number(r.tobiPt)||0)}pt。`;
   $('swKuitan').setAttribute('aria-checked',String(r.kuitan));
   $('swAto').setAttribute('aria-checked',String(r.atozuke));
 }
@@ -155,6 +168,9 @@ bindSeg($('segUma'),v=>{S.rules.uma=v;});
 function numIn(id,key,isFloat){ $(id).addEventListener('input',e=>{ const v=isFloat?parseFloat(e.target.value):parseInt(e.target.value,10); if(!isNaN(v)){ S.rules[key]=v; update(); } }); }
 numIn('inStart','start'); numIn('inRet','ret'); numIn('inChipInit','chipInit'); numIn('inChipPt','chipPt',true);
 $('umaFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; const v=parseInt(e.target.value.replace('−','-'),10); S.rules.umaCustom[i]=isNaN(v)?0:v; update(); });
+$('swTobi').addEventListener('click',()=>{S.rules.tobi=!S.rules.tobi;update();});
+numIn('inTobiPt','tobiPt',true);
+bindSeg($('segTobiAt'),v=>{S.rules.tobiAt=v;});
 $('swKuitan').addEventListener('click',()=>{S.rules.kuitan=!S.rules.kuitan;update();});
 $('swAto').addEventListener('click',()=>{S.rules.atozuke=!S.rules.atozuke;update();});
 
@@ -184,7 +200,8 @@ function checkSum(){
   if(filled<n){ el.className='check'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span> / ${fmtPts(target)}点</span><span>あと${n-filled}人</span>`; }
   else if(diff===0){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${diff>0?'':'あと'}<span class="num">${fmtPts(Math.abs(diff))}</span>点${diff>0?'多い':'足りない'}</span>`; }
-  $('saveGame').disabled=!(filled===n&&diff===0);
+  const tobiOk=renderTobi();
+  $('saveGame').disabled=!(filled===n&&diff===0&&tobiOk);
   $('autoFill').disabled=filled!==n-1;
 }
 $('entryList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.draft['p'+i]=e.target.value; checkSum(); save(); });
@@ -198,6 +215,24 @@ $('entryList').addEventListener('click',e=>{
   const b=e.target.closest('[data-s]'); if(!b) return;
   const i=b.dataset.s; S.draft['s'+i]=!S.draft['s'+i]; b.classList.toggle('neg',S.draft['s'+i]); b.textContent=S.draft['s'+i]?'−':'+'; checkSum(); save();
 });
+/* 飛び賞：飛んだ人ごとに「飛ばした人」を選ぶ。全員選び終わるまで記録できない */
+function bustedInDraft(){ return S.rules.tobi?idSeat(N()).filter(p=>{ const v=parseDraft(p); return v!=null&&isBust(v); }):[]; }
+function renderTobi(){
+  const busted=bustedInDraft(), box=$('tobiBox');
+  S.draft.tobi=S.draft.tobi||{};
+  Object.keys(S.draft.tobi).forEach(p=>{ if(!busted.includes(Number(p))) delete S.draft.tobi[p]; });
+  box.hidden=!busted.length;
+  if(!busted.length){ box.innerHTML=''; return true; }
+  const T=fix(tobiPt());
+  box.innerHTML=busted.map(p=>{ const sel=S.draft.tobi[p];
+    const opts=idSeat(N()).filter(q=>q!==p).map(q=>`<button type="button" data-tb="${p}" data-v="${q}" aria-pressed="${String(sel)===String(q)}">${esc(nameOf(q))}</button>`).join('')
+      +`<button type="button" data-tb="${p}" data-v="none" aria-pressed="${sel==='none'}">なし</button>`;
+    return `<div><div class="q"><b>${esc(nameOf(p))}</b>が飛び（−${T}pt）。飛ばしたのは？</div><div class="seg">${opts}</div></div>`; }).join('')
+    +'<div class="hint">「なし」は流局の罰符などで飛んだとき用です（飛び賞は移動しません）。</div>';
+  return busted.every(p=>S.draft.tobi[p]!=null);
+}
+$('tobiBox').addEventListener('click',e=>{ const b=e.target.closest('[data-tb]'); if(!b) return;
+  S.draft.tobi=S.draft.tobi||{}; S.draft.tobi[b.dataset.tb]=b.dataset.v==='none'?'none':Number(b.dataset.v); checkSum(); save(); });
 $('autoFill').addEventListener('click',()=>{
   const n=N(), vals=idSeat(n).map(parseDraft), miss=vals.indexOf(null); if(miss<0) return;
   const rest=S.rules.start*n-vals.reduce((a,b)=>a+(b||0),0);
@@ -211,7 +246,8 @@ $('saveGame').addEventListener('click',()=>{
   if(pts.some(v=>v==null)) return;
   unsample();
   const id=(S.games.reduce((m,g)=>Math.max(m,g.id),0))+1;
-  S.games.push({id,seat:S.seat.slice(),pts,t:Date.now()});
+  const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
+  S.games.push({id,seat:S.seat.slice(),pts,t:Date.now(),...(Object.keys(tobi).length?{tobi}:{})});
   freshId=id; S.draft={};
   blur(); update();
 });
@@ -223,10 +259,10 @@ function renderGames(){
   if(!S.games.length){ $('gameList').innerHTML='<div class="panel empty">まだ記録がありません。上で席と持ち点を入れて記録してください。</div>'; return; }
   $('gameList').innerHTML=S.games.slice().reverse().map((g,ri)=>{
     const no=S.games.length-ri, c=calc(g), dealer=g.seat.indexOf(0);
-    const rows=c.order.map(p=>`<div class="r"><span class="tile sm">${RANKK[c.rank[p]]}</span><span>${esc(nameOf(p))}<span class="wind">${WINDS[g.seat[p]]}</span>${c.tied.has(p)?'<span class="tieNote">同点</span>':''}</span><span class="raw">${fmtPts(g.pts[p])}</span><span class="pt ${cls(c.score[p])}">${fmtPt(c.score[p])}</span></div>`).join('');
+    const rows=c.order.map(p=>`<div class="r"><span class="tile sm">${RANKK[c.rank[p]]}</span><span>${esc(nameOf(p))}<span class="wind">${WINDS[g.seat[p]]}</span>${c.tied.has(p)?'<span class="tieNote">同点</span>':''}${c.tobi.some(([x])=>x===p)?'<span class="tieNote">飛び</span>':''}</span><span class="raw">${fmtPts(g.pts[p])}</span><span class="pt ${cls(c.score[p])}">${fmtPt(c.score[p])}</span></div>`).join('');
     const tm=new Date(g.t); const hm=tm.getHours()+':'+String(tm.getMinutes()).padStart(2,'0');
     return `<article class="game ${g.id===freshId?'fresh':''}"><header><b>第${no}半荘</b><span class="hint">起家 ${esc(nameOf(dealer))}・${hm}　<button type="button" class="btn danger" style="padding:2px 8px;font-size:11px" data-del="${g.id}">削除</button></span></header>
-    <div class="res">${rows}</div>${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${confirmDel===g.id?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
+    <div class="res">${rows}</div>${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${confirmDel===g.id?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
   }).join('');
   freshId=null;
 }

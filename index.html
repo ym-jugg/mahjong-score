@@ -85,6 +85,20 @@
     </div>
 
     <div class="sec">
+      <h2>飛び賞</h2>
+      <div class="panel">
+        <div class="row toggle"><span>飛び賞あり</span><button type="button" class="sw" role="switch" id="swTobi" aria-label="飛び賞"></button></div>
+        <div class="row" id="tobiPtRow">
+          <div class="grid2"><div><div class="mini">飛び賞</div><label class="field"><input id="inTobiPt" inputmode="decimal" aria-label="飛び賞のpt"><span class="unit">pt</span></label></div></div>
+          <span class="hint" id="tobiHint"></span>
+        </div>
+        <div class="row" id="tobiAtRow"><span class="lbl">飛びの判定</span>
+          <div class="seg" id="segTobiAt"><button type="button" data-v="neg">0点未満で飛び</button><button type="button" data-v="zero">0点ちょうども飛び</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
       <h2>ローカルルール</h2>
       <div class="panel">
         <div class="row toggle"><span>喰いタン</span><button type="button" class="sw" role="switch" id="swKuitan" aria-label="喰いタン"></button></div>
@@ -125,6 +139,7 @@
           <div class="busy" id="scanBusy" hidden>読み取り中…</div>
         </div>
         <div class="row" style="gap:0" id="entryList"></div>
+        <div class="tobi" id="tobiBox" hidden></div>
         <div class="check" id="sumCheck"></div>
         <div class="actions">
           <button type="button" class="btn ghost" id="autoFill">残り1人を自動計算</button>
