@@ -313,11 +313,27 @@ async function runScan(src){
     const img=new Image(); img.src=src; await img.decode();
     await new Promise(r=>setTimeout(r,30));
     const res=SegOCR.read(img);
-    const vals={}, raw={};
-    Object.keys(roleOffs()).forEach(k=>{ const g=res.roles[k];
-      raw[k]=g?g.text:'';
-      vals[k]=g&&g.value!=null?{neg:g.value<0,v:String(Math.abs(g.value))}:{neg:!!(g&&g.neg),v:''}; });
-    scan={res,vals,raw,shooter:S.shooter!=null&&S.shooter<N()?S.shooter:0};
+    const vals={}, raw={}, note={}, ks=Object.keys(roleOffs()), target=S.rules.start*N();
+    ks.forEach(k=>{ const g=res.roles[k]; raw[k]=g?g.text:''; });
+    // 合計（配給原点×人数）が合う組み合わせを探す。百点単位・十点単位の両方を試す
+    const sol=SegOCR.solve(res.roles,ks,target);
+    if(sol){
+      ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
+        vals[k]={neg:v<0,v:String(Math.abs(v))};
+        const readTxt=g&&g.value!=null?String(Math.abs(g.value)):'';
+        if(sol[k].filled) note[k]='読めなかったため合計から計算';
+        else if(!g||g.value==null||(Math.abs(g.value)!==Math.abs(v)&&Math.abs(g.value)!==Math.abs(v)*10)) note[k]='合計に合うように補正';
+      });
+    } else {
+      // 合計で確かめられないときは、ありえる値（3桁以上・百点単位で整数・合計の1.5倍以内）だけ入れ、他は空欄にする
+      const got=ks.map(k=>res.roles[k]&&res.roles[k].value).filter(v=>v!=null);
+      const div=got.some(v=>Math.abs(v)>=1000)?10:1;
+      ks.forEach(k=>{ const g=res.roles[k];
+        const v=g&&g.value!=null&&g.digits.length>=(div===10?4:3)?g.value/div:null;
+        const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
+        vals[k]=ok?{neg:v<0,v:String(Math.abs(v))}:{neg:!!(g&&g.neg),v:''}; });
+    }
+    scan={res,vals,raw,note,shooter:S.shooter!=null&&S.shooter<N()?S.shooter:0};
     $('scanBox').hidden=false; renderScan(true);
     $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
@@ -342,7 +358,7 @@ function renderScan(redraw){
   if(!$('scanRows').contains(document.activeElement)){
     $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=v.v==='';
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
-      <div class="role">${ROLE_LBL[k]}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:''}</div>
+      <div class="role">${ROLE_LBL[k]}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:(scan.note[k]?`・<span class="raw">${scan.note[k]}（読み取り「${esc(scan.raw[k]||'—')}」）</span>`:'')}</div>
       <div class="pin"><button type="button" class="sign ${v.neg?'neg':''}" data-rs="${k}" aria-label="プラスとマイナスを切り替え">${v.neg?'−':'+'}</button><input id="scan_${k}" data-r="${k}" inputmode="numeric" value="${v.v}" placeholder="?" aria-label="${esc(nameOf(p))}の持ち点（百点単位）"><span class="zz">00</span></div></div>`; }).join('');
   }
   if(redraw!==false) drawScan();

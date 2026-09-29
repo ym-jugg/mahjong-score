@@ -12,6 +12,15 @@ const SegOCR=(function(){
     const cx=cv.getContext('2d',{willReadFrequently:true}); cx.imageSmoothingQuality='high'; cx.drawImage(img,0,0,cv.width,cv.height);
     return cv;
   }
+  // 白っぽく光る数字（露出オーバーや、赤い枠の上に明るい数字が出る表示）用
+  function brightMask(data,W,H){
+    const m=new Uint8Array(W*H);
+    for(let i=0,p=0;i<m.length;i++,p+=4){
+      const r=data[p],g=data[p+1],b=data[p+2];
+      if(r>=190&&g>=r*.45&&r>=b&&r+g>=330) m[i]=1;
+    }
+    return m;
+  }
   function redMask(data,W,H){
     const m=new Uint8Array(W*H);
     for(let i=0,p=0;i<m.length;i++,p+=4){
@@ -27,6 +36,12 @@ const SegOCR=(function(){
     for(let y=0;y<H;y++){ let run=-1e9; for(let x=0;x<W;x++){ if(m[y*W+x]) run=x; if(x-run<=rad) t[y*W+x]=1; } run=1e9; for(let x=W-1;x>=0;x--){ if(m[y*W+x]) run=x; if(run-x<=rad) t[y*W+x]=1; } }
     for(let x=0;x<W;x++){ let run=-1e9; for(let y=0;y<H;y++){ if(t[y*W+x]) run=y; if(y-run<=rad) o[y*W+x]=1; } run=1e9; for(let y=H-1;y>=0;y--){ if(t[y*W+x]) run=y; if(run-y<=rad) o[y*W+x]=1; } }
     return o;
+  }
+  // 細い線（表示の枠線など）を消して、太い数字の線だけ残す
+  function openMask(m,W,H,rad){
+    const inv=new Uint8Array(W*H); for(let i=0;i<inv.length;i++) inv[i]=m[i]?0:1;
+    const er=dilate(inv,W,H,rad); for(let i=0;i<er.length;i++) er[i]=er[i]?0:1;
+    return dilate(er,W,H,rad);
   }
   function components(m,W,H,orig){
     const lab=new Int32Array(W*H), out=[], st=[];
@@ -85,26 +100,58 @@ const SegOCR=(function(){
     let best=null;
     for(const s of [0,.05,.1,.15,.2,.25]){
       const sh=s*gH; if(sh>gW*.6) continue;
-      const Fs=ds.map((d,i)=>ORDER.map(k=>fill(m,W,H,X0+i*P,gTop,gW,gH,sh,REG[k])));
+      // 桁の枠：十分な幅があればその桁自身の枠（遠近で右ほど大きく写る場合に対応）、細い桁は等間隔の位置から
+      const Fs=ds.map((d,i)=>{ const own=bw(d)>=.8*gW&&bh(d)>=.85*gH;
+        const cx0=own?d.x0:X0+i*P, cw=own?bw(d):gW, cy0=own?d.y0:gTop, ch=own?bh(d):gH, csh=s*ch;
+        return ORDER.map(k=>fill(m,W,H,cx0,cy0,cw,ch,Math.min(csh,cw*.6),REG[k])); });
       const all=Fs.flat().sort((x,y)=>x-y);
       const lo=all[Math.floor(all.length*.1)], hi=Math.max(all[Math.floor(all.length*.9)],lo+.2);
-      let total=0; const chars=[];
+      let total=0; const chars=[], cands=[];
       Fs.forEach((F,pos)=>{
         const f=F.map(v=>Math.min(1,Math.max(0,(v-lo)/(hi-lo))));
         const errs=TPL.map((t,n)=>n===10&&pos>0?99:t.reduce((e,tv,j)=>e+(f[j]-tv)**2,0));
         const order=errs.map((e,n)=>[e,n]).sort((x,y)=>x[0]-y[0]);
         const [e1,n1]=order[0], e2=order[1][0];
         total+=e1;
+        cands.push(order.slice(0,3).map(([e,n])=>({d:n===10?'-':String(n),e})));
         chars.push(e1<1.2&&e2-e1>.25?(n1===10?'-':String(n1)):'?');
       });
-      if(!best||total<best.total) best={total,chars};
+      if(!best||total<best.total) best={total,chars,cands};
     }
-    return best.chars;
+    return best;
   }
 
+  const quality=g=>g.chars.filter(ch=>/\d/.test(ch)).length*10+(g.value!=null?50:0)+g.digits.length;
+  // 読み方を変えた複数の結果を、表示の位置ごとにまとめて一番よく読めたものを残す
+  function runAll(cv){
+    const base=Math.max(1,Math.round(Math.min(cv.width,cv.height)/450));
+    const out=[];
+    [['red',0],['bright',base],['bright',Math.round(base*1.5)+1]].forEach(([mode,rad])=>{
+      analyze(cv,mode,rad).forEach(g=>{
+        const i=out.findIndex(o=>{ const xo=Math.min(o.x1,g.x1)-Math.max(o.x0,g.x0); return xo>.5*Math.min(o.x1-o.x0,g.x1-g.x0)&&Math.abs(o.cy-g.cy)<.5*Math.max(o.h,g.h); });
+        if(i<0) out.push(g); else if(quality(g)>quality(out[i])) out[i]=g;
+      });
+    });
+    return out;
+  }
+  function pickRoles(gs){
+    gs=gs.slice().sort((a,b)=>quality(b)-quality(a)||b.h-a.h).slice(0,4);
+    const roles={};
+    const cand=gs.filter(g=>g.digits.length>=3); const pool=cand.length?cand:gs;
+    if(pool.length){
+      const self=pool.reduce((a,b)=>b.h>a.h?b:a); roles.self=self;
+      gs.filter(g=>g!==self).forEach(g=>{
+        const dx=g.cx-self.cx, dy=g.cy-self.cy, sw=self.x1-self.x0;
+        const role=(Math.abs(dx)<sw*.6&&dy<0)?'toimen':(dx<0?'kamicha':'shimocha');
+        if(!roles[role]||quality(g)>quality(roles[role])) roles[role]=g;
+      });
+    }
+    return {groups:gs,roles};
+  }
+  const score=r=>Object.values(r.roles).reduce((a,g)=>a+quality(g),0);
   function read(img){
     const cv=toCanvas(img);
-    let r=analyze(cv);
+    let r=Object.assign({canvas:cv},pickRoles(runAll(cv)));
     const self=r.roles.self;
     if(self&&self.digits.length>=3){
       // 自分の表示の数字の並びから傾きを求めて補正
@@ -115,18 +162,20 @@ const SegOCR=(function(){
         const rc=document.createElement('canvas'); rc.width=cv.width; rc.height=cv.height;
         const c=rc.getContext('2d',{willReadFrequently:true}); c.fillStyle='#000'; c.fillRect(0,0,rc.width,rc.height);
         c.translate(rc.width/2,rc.height/2); c.rotate(-ang); c.drawImage(cv,-cv.width/2,-cv.height/2);
-        const r2=analyze(rc);
-        const cnt=x=>x.groups.reduce((a,g)=>a+g.chars.filter(ch=>ch!=='?').length,0);
-        if(cnt(r2)>=cnt(r)) r=r2;
+        const r2=Object.assign({canvas:rc},pickRoles(runAll(rc)));
+        if(score(r2)>=score(r)) r=r2;
       }
     }
     return r;
   }
-  function analyze(cv){
+  function analyze(cv,mode,rad){
     const W=cv.width, H=cv.height;
     const data=cv.getContext('2d').getImageData(0,0,W,H).data;
-    const m=redMask(data,W,H);
-    const red=new Float32Array(W*H); for(let i=0,p=0;i<red.length;i++,p+=4) red[i]=data[p]-(data[p+1]+data[p+2])/2;
+    let m=mode==='bright'?brightMask(data,W,H):redMask(data,W,H);
+    if(mode==='bright') m=openMask(m,W,H,rad);
+    // 点灯判定に使う明るさ：赤い数字は「赤さ」、白っぽい数字は「赤＋緑の明るさ」
+    const red=new Float32Array(W*H);
+    for(let i=0,p=0;i<red.length;i++,p+=4) red[i]=mode==='bright'?data[p]+data[p+1]:data[p]-(data[p+1]+data[p+2])/2;
     const dm=dilate(m,W,H,Math.max(1,Math.round(Math.min(W,H)/400)));
     let bs=components(dm,W,H,m).filter(b=>b.area>=6&&bh(b)<H*.5&&bw(b)<W*.3);
     bs=mergePieces(bs);
@@ -147,23 +196,56 @@ const SegOCR=(function(){
     gs.forEach(g=>{
       g.neg=dashes.some(s=>Math.abs(bcy(s)-g.cy)<.25*g.h&&s.x1<=g.x0+.2*g.h&&s.x0>=g.x0-1.6*g.h);
       g.digits=g.digits.slice(-4);
-      g.chars=decodeGroup(g,red,W,H);
+      const dec=decodeGroup(g,red,W,H); g.chars=dec.chars; g.cands=dec.cands;
       let txt=g.chars.join('');
       if(txt.startsWith('-')){ g.neg=true; txt=txt.replace(/^-+/,''); }
       g.text=(g.neg?'-':'')+txt;
       g.value=/^\d+$/.test(txt)?(g.neg?-1:1)*parseInt(txt,10):null; // 百点単位
     });
-    // 役割: 一番大きい=自分、上=対面、左=上家、右=下家
-    const roles={};
-    if(gs.length){
-      const self=gs.reduce((a,b)=>b.h>a.h?b:a); roles.self=self;
-      gs.filter(g=>g!==self).forEach(g=>{
-        const dx=g.cx-self.cx, dy=g.cy-self.cy, sw=self.x1-self.x0;
-        const role=(Math.abs(dx)<sw*.6&&dy<0)?'toimen':(dx<0?'kamicha':'shimocha');
-        if(!roles[role]) roles[role]=g;
-      });
-    }
-    return {canvas:cv,groups:gs,roles};
+    return gs;
   }
-  return {read};
+  // 全員の合計が決まっている（配給原点×人数）ことを使って、怪しい桁を候補から選び直す。
+  // 答えが1通りに絞れないとき・桁数がおかしいときは補正しない（間違った数字で合計だけ合うのを防ぐ）
+  function solve(roles,keys,targetPts){
+    const clean=g=>g&&g.cands&&g.digits.length>=3&&g.chars.every(ch=>/[\d-]/.test(ch));
+    const opts=keys.map(k=>{ const g=roles[k]; if(!g||!g.cands||g.digits.length<3) return null;
+      let list=[{v:'',cost:0}];
+      g.cands.forEach(c=>{
+        if(c[0].d==='-') return;
+        const ds=c.filter(x=>/\d/.test(x.d)); if(!ds.length) return;
+        const top=ds[0].e, pick=g.chars.includes('?')?ds:ds.filter(x=>x.e<=top+.6);
+        const nx=[]; list.forEach(a=>pick.forEach(x=>nx.push({v:a.v+x.d,cost:a.cost+x.e-top}))); nx.sort((a,b)=>a.cost-b.cost); list=nx.slice(0,20);
+      });
+      const sg=g.neg?-1:1;
+      return list.map(a=>({n:sg*parseInt(a.v,10),cost:a.cost})).filter(a=>!isNaN(a.n));
+    });
+    const sols=[];
+    [100,10].forEach(unit=>{
+      const T=targetPts/unit;
+      const known=opts.map((o,i)=>o&&o.length?i:-1).filter(i=>i>=0), miss=opts.map((o,i)=>o&&o.length?-1:i).filter(i=>i>=0);
+      if(miss.length>1) return;
+      if(miss.length===1&&!known.every(i=>clean(roles[keys[i]]))) return; // 1人を合計から出すのは、他の3人がきれいに読めたときだけ
+      const ok=v=>Number.isInteger(v)&&(v*unit)%100===0&&Math.abs(v*unit)<=targetPts*1.5;
+      const rec=(i,sum,cost,pick)=>{
+        if(i===known.length){
+          const vals=pick.slice();
+          if(miss.length) vals[miss[0]]=T-sum; else if(sum!==T) return;
+          if(!vals.every(ok)) return;
+          sols.push({cost,unit,vals,filled:miss.length?miss[0]:-1}); return;
+        }
+        const o=miss.length?opts[known[i]].slice(0,1):opts[known[i]];
+        for(const a of o){ pick[known[i]]=a.n; rec(i+1,sum+a.n,cost+a.cost,pick); }
+      };
+      rec(0,0,0,[]);
+    });
+    if(!sols.length) return null;
+    sols.sort((a,b)=>a.cost-b.cost);
+    const best=sols[0], key=x=>x.vals.map(v=>v*x.unit).join(',');
+    const rival=sols.find(x=>key(x)!==key(best));
+    if(rival&&rival.cost-best.cost<.5) return null; // 候補が複数ありうる
+    const out={};
+    keys.forEach((k,i)=>{ out[k]={value:best.vals[i]*best.unit/100,filled:i===best.filled}; });
+    return out;
+  }
+  return {read,solve};
 })();
