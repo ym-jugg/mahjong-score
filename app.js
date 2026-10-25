@@ -391,14 +391,15 @@ async function loadTrash(){
 const fmtDT=t=>{ const d=new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`; };
 function gameLine(g){ const L=g.pts.length; return idSeat(L).filter(i=>g.seat&&g.seat[i]>=0&&g.pts[i]!=null).sort((a,b)=>g.pts[b]-g.pts[a]).map(i=>`${esc(nameOf(i))} ${fmtPts(g.pts[i])}`).join('　'); }
 async function renderTrash(){
-  const box=$('trashBox'); box.hidden=false; $('trashToggle').textContent='ゴミ箱を閉じる';
+  const box=$('trashBox'); const first=box.hidden; box.hidden=false; $('trashToggle').textContent='ゴミ箱を閉じる';
+  if(first) box.scrollIntoView({behavior:'smooth',block:'start'});
   if(trashItems==null){ box.innerHTML='<div class="hint">読み込み中…</div>';
     try{ trashItems=await loadTrash(); }catch(e){ trashItems=[]; trashMsg='ゴミ箱を読み込めませんでした（通信を確認してください）'; } }
   const msg=trashMsg?`<div class="check ng" style="margin:0 0 8px">${esc(trashMsg)}</div>`:'';
   box.innerHTML=msg+(trashItems.length?trashItems.map((x,i)=>`<div class="trow"><div><b>${fmtDT(x.g.t)}の半荘</b><div class="hint">${gameLine(x.g)}</div><div class="hint">${fmtDT(x.at)}に削除</div></div><button type="button" class="btn ghost" data-restore="${i}">戻す</button></div>`).join('')
     :'<div class="hint">ゴミ箱は空です。</div>')+'<div class="hint" style="margin-top:8px">削除した半荘は30日間ここに残り、「戻す」で記録に戻せます。</div>';
 }
-$('trashToggle').addEventListener('click',()=>{ if($('trashBox').hidden){ trashItems=null; trashMsg=''; renderTrash(); } else { $('trashBox').hidden=true; $('trashToggle').textContent='ゴミ箱を見る'; } });
+$('trashToggle').addEventListener('click',()=>{ if($('trashBox').hidden){ trashItems=null; trashMsg=''; renderTrash(); } else { $('trashBox').hidden=true; $('trashToggle').textContent='ゴミ箱'; } });
 $('trashBox').addEventListener('click',async e=>{
   const b=e.target.closest('[data-restore]'); if(!b) return;
   const x=trashItems[Number(b.dataset.restore)]; if(!x) return;

@@ -15,7 +15,10 @@
 [hidden]{display:none!important}
 html,body{background:var(--bg);max-width:100%;overflow-x:hidden}
 body{color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-tap-highlight-color:transparent}
-.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:0 110px}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:0 calc(110px + env(safe-area-inset-bottom,0px))}
+.sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.sechead h2{margin:0!important}
+#trashBox{scroll-margin-top:140px}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--felt);outline-offset:2px}
