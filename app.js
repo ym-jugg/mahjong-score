@@ -41,7 +41,10 @@ const RO=!!VIEW_TOKEN;
 let S;
 function normalize(){
   if(!S||!S.rules) S=sample();
-  S.draft=S.draft||{}; S.games=S.games||[]; S.fee=S.fee||{total:0,mode:'equal'}; S.names=S.names||[]; S.chips=S.chips||[];
+  S.draft=S.draft||{}; S.games=S.games||[]; S.fee=S.fee||{total:0,mode:'equal'};
+  S.archives=S.archives||[];
+  // ゴミ箱（この端末だけのデータ用）：30日を過ぎたものは消す
+  S.trash=(S.trash||[]).filter(x=>Date.now()-x.at<30*864e5); S.names=S.names||[]; S.chips=S.chips||[];
   S.rules.tie=S.rules.tie||'kicha';
   if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
   // 旧形式（起家だけ保存）からの移行
@@ -364,7 +367,7 @@ function renderGames(){
     const rows=c.order.map(p=>`<div class="r"><span class="tile sm">${RANKK[c.rank[p]]}</span><span>${esc(nameOf(p))}<span class="wind">${WINDS[g.seat[p]]}</span>${c.tied.has(p)?'<span class="tieNote">同点</span>':''}${c.tobi.some(([x])=>x===p)?'<span class="tieNote">飛び</span>':''}</span><span class="raw">${fmtPts(g.pts[p])}</span><span class="pt ${cls(c.score[p])}">${fmtPt(c.score[p])}</span></div>`).join('');
     const tm=new Date(g.t); const hm=tm.getHours()+':'+String(tm.getMinutes()).padStart(2,'0');
     return `<article class="game ${String(g.id)===String(freshId)?'fresh':''}"><header><b>第${no}半荘</b><span class="hint">起家 ${esc(nameOf(dealer))}・${hm}　<button type="button" class="btn danger ro-hide" style="padding:2px 8px;font-size:11px" data-del="${g.id}">削除</button></span></header>
-    <div class="res">${rows}</div>${c.out.length?`<div class="hint" style="margin-top:4px">抜け番：${c.out.map(i=>esc(nameOf(i))).join('、')}</div>`:''}${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${String(confirmDel)===String(g.id)?`<div class="confirm">この半荘を削除しますか？<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
+    <div class="res">${rows}</div>${c.out.length?`<div class="hint" style="margin-top:4px">抜け番：${c.out.map(i=>esc(nameOf(i))).join('、')}</div>`:''}${c.tobi.map(([p,b])=>`<div class="tobiLine">飛び賞：${esc(nameOf(p))} → ${esc(nameOf(b))}（${fix(tobiPt())}pt）</div>`).join('')}${c.tied.size?`<div class="hint" style="margin-top:4px">同点は「${TIE_LBL[S.rules.tie]}」で計算</div>`:''}${String(confirmDel)===String(g.id)?`<div class="confirm">この半荘を削除しますか？（30日間はゴミ箱から戻せます）<button type="button" class="btn danger" data-delyes="${g.id}">削除する</button><button type="button" class="btn ghost" data-delno="1">やめる</button></div>`:''}</article>`;
   }).join('');
   freshId=null;
 }
@@ -372,10 +375,58 @@ $('gameList').addEventListener('click',e=>{
   const d=e.target.closest('[data-del]'), y=e.target.closest('[data-delyes]'), no=e.target.closest('[data-delno]');
   if(d){ confirmDel=d.dataset.del; renderGames(); }
   if(no){ confirmDel=null; renderGames(); }
-  if(y){ const id=y.dataset.delyes; S.games=S.games.filter(g=>String(g.id)!==id); confirmDel=null; unsample(); update(); if(S.cloud) Sync.deleteGame(id); }
+  if(y){ const id=y.dataset.delyes, g=S.games.find(x=>String(x.id)===id);
+    S.games=S.games.filter(x=>String(x.id)!==id); confirmDel=null;
+    if(S.cloud) Sync.deleteGame(id); else if(g&&!S.sample) S.trash.unshift({g,at:Date.now()});
+    unsample(); update(); if(!$('trashBox').hidden){ trashItems=null; renderTrash(); } }
+});
+
+/* ---------- ゴミ箱 ---------- */
+let trashItems=null, trashMsg='';
+async function loadTrash(){
+  if(!S.cloud) return S.trash.map(x=>({g:x.g,at:x.at}));
+  const rows=await Cloud.trash(S.cloud.id);
+  return rows.map(r=>({g:Object.assign({},r.data,{id:r.id}),at:new Date(r.updated_at).getTime()}));
+}
+const fmtDT=t=>{ const d=new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`; };
+function gameLine(g){ const L=g.pts.length; return idSeat(L).filter(i=>g.seat&&g.seat[i]>=0&&g.pts[i]!=null).sort((a,b)=>g.pts[b]-g.pts[a]).map(i=>`${esc(nameOf(i))} ${fmtPts(g.pts[i])}`).join('　'); }
+async function renderTrash(){
+  const box=$('trashBox'); box.hidden=false; $('trashToggle').textContent='ゴミ箱を閉じる';
+  if(trashItems==null){ box.innerHTML='<div class="hint">読み込み中…</div>';
+    try{ trashItems=await loadTrash(); }catch(e){ trashItems=[]; trashMsg='ゴミ箱を読み込めませんでした（通信を確認してください）'; } }
+  const msg=trashMsg?`<div class="check ng" style="margin:0 0 8px">${esc(trashMsg)}</div>`:'';
+  box.innerHTML=msg+(trashItems.length?trashItems.map((x,i)=>`<div class="trow"><div><b>${fmtDT(x.g.t)}の半荘</b><div class="hint">${gameLine(x.g)}</div><div class="hint">${fmtDT(x.at)}に削除</div></div><button type="button" class="btn ghost" data-restore="${i}">戻す</button></div>`).join('')
+    :'<div class="hint">ゴミ箱は空です。</div>')+'<div class="hint" style="margin-top:8px">削除した半荘は30日間ここに残り、「戻す」で記録に戻せます。</div>';
+}
+$('trashToggle').addEventListener('click',()=>{ if($('trashBox').hidden){ trashItems=null; trashMsg=''; renderTrash(); } else { $('trashBox').hidden=true; $('trashToggle').textContent='ゴミ箱を見る'; } });
+$('trashBox').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-restore]'); if(!b) return;
+  const x=trashItems[Number(b.dataset.restore)]; if(!x) return;
+  trashMsg=''; b.disabled=true;
+  try{
+    if(S.cloud){ const d=Object.assign({},x.g); delete d.id; delete d.archived; await Cloud.setGame(x.g.id,{deleted:false,data:d}); }
+    else S.trash=S.trash.filter(t=>String(t.g.id)!==String(x.g.id));
+    if(!S.games.some(g=>String(g.id)===String(x.g.id))){ const g=Object.assign({},x.g); delete g.archived; S.games.push(g); S.games.sort((a,b)=>(a.t||0)-(b.t||0)); }
+    trashItems.splice(trashItems.indexOf(x),1); freshId=x.g.id; update();
+  }catch(err){ trashMsg='戻せませんでした（通信を確認してください）'; }
+  renderTrash();
 });
 
 /* ---------- totals ---------- */
+function computeTotals(){
+  const n=M(), r=S.rules;
+  const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
+  S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{ if(i>=n) return; if(s==null){ outs[i]++; return; } tot[i]+=s; if(c.rank[i]!=null) rk[i][c.rank[i]]++; }); });
+  const chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:r.chipInit);
+  const chipsFilled=chips.every(v=>v!==''&&v!=null&&!isNaN(v));
+  const chipPt=chips.map(c=>chipsFilled?fix((Number(c)-r.chipInit)*r.chipPt):0);
+  const all=tot.map((t,i)=>fix(t+chipPt[i]));
+  const played=idSeat(n).map(i=>S.games.filter(g=>g.seat&&g.seat[i]>=0&&g.pts[i]!=null).length);
+  const feeTotal=Math.max(0,Number(S.fee.total)||0);
+  const fee=allocate(feeTotal,S.fee.mode==='games'&&played.some(x=>x>0)?played:idSeat(n).map(()=>1));
+  const fin=idSeat(n).map(i=>yen(all[i])-fee[i]);
+  return {n,tot,rk,outs,chipPt,all,played,feeTotal,fee,fin};
+}
 function renderTotal(){
   const n=M(), r=S.rules;
   const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
@@ -424,9 +475,69 @@ function renderFee(fee,played,total){
 $('inFee').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,''); S.fee.total=Number(e.target.value)||0; unsample(); renderTotal(); save(); });
 bindSeg($('segFee'),v=>{ S.fee.mode=v; });
 $('chipFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.chips[i]=e.target.value===''?'':Number(e.target.value); unsample(); renderTotal(); save(); });
+/* ---------- 保存して新しく始める／過去の精算 ---------- */
+let arcMsg='', arcOpen=null, arcConfirm=null;
+const clone=o=>JSON.parse(JSON.stringify(o));
+// 今の精算を「過去の精算」に保存する（記録が無ければ何もしない）
+async function archiveCurrent(){
+  if(!S.games.length) return null;
+  const t=computeTotals(), id=uuid();
+  const arc={id,at:Date.now(),games:S.games.length,feeTotal:t.feeTotal,
+    rows:idSeat(t.n).map(i=>({name:nameOf(i),pt:t.all[i],fee:t.fee[i],fin:t.fin[i],ranks:t.rk[i].join('-')})).sort((a,b)=>b.fin-a.fin),
+    snap:clone({rules:S.rules,names:S.names,members:S.members,chips:S.chips,fee:S.fee,seat:S.seat,games:S.games})};
+  if(S.cloud){ // 共有の卓：記録は削除扱いにして「保存済み」の印をつける（ゴミ箱には出ない）
+    await Promise.all(S.games.map(g=>{ const d=Object.assign({},g); delete d.id; d.archived=id; return Cloud.setGame(g.id,{deleted:true,data:d}); }));
+  }
+  S.archives.unshift(arc); if(S.archives.length>50) S.archives.length=50;
+  return arc;
+}
+function clearCurrent(){ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:S.fee.mode}; }
 $('resetAll').addEventListener('click',()=>{ $('resetConfirm').hidden=false; });
 $('resetNo').addEventListener('click',()=>{ $('resetConfirm').hidden=true; });
-$('resetYes').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:S.fee.mode}; S.seat=defaultSeat(); $('resetConfirm').hidden=true; unsample(); update(); });
+$('resetYes').addEventListener('click',async()=>{
+  arcMsg=''; $('resetYes').disabled=true;
+  try{
+    if(S.sample){ clearCurrent(); unsample(); }
+    else { const a=await archiveCurrent(); clearCurrent(); arcMsg=a?`${fmtDT(a.at)}の精算を「過去の精算」に保存しました`:''; }
+    $('resetConfirm').hidden=true; update();
+  }catch(e){ arcMsg='保存できませんでした（通信を確認してください）。記録はそのまま残っています'; }
+  $('resetYes').disabled=false; renderArchives();
+});
+function renderArchives(){
+  const box=$('archiveList'); if(!box) return;
+  const list=S.archives||[];
+  const msg=arcMsg?`<div class="check ${/保存しました|戻しました/.test(arcMsg)?'ok':'ng'}" style="margin:0 0 10px">${esc(arcMsg)}</div>`:'';
+  if(!list.length){ box.innerHTML=msg+'<div class="hint">まだありません。「保存して新しく始める」を押すと、ここに残ります。</div>'; return; }
+  box.innerHTML=msg+list.map(a=>{ const top=a.rows[0];
+    const open=arcOpen===a.id, conf=arcConfirm&&arcConfirm.id===a.id?arcConfirm.kind:null;
+    return `<div class="arc"><div class="trow"><div><b>${fmtDT(a.at)}</b>　${a.games}半荘<div class="hint">1位 ${esc(top.name)} ${fmtYen(top.fin)}</div></div>
+      <div class="actions" style="margin:0"><button type="button" class="btn ghost" data-arc-view="${a.id}">${open?'閉じる':'見る'}</button><button type="button" class="btn ghost ro-hide" data-arc-restore="${a.id}">戻す</button></div></div>
+      ${open?`<div class="tw"><table><thead><tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>合計pt</th><th>金額${a.feeTotal?'<small style="display:block;font-weight:500">場代込み</small>':''}</th></tr></thead><tbody>${a.rows.map(r=>`<tr><td class="nm">${esc(r.name)}<small>${r.ranks}</small></td><td class="${cls(r.pt)}">${fmtPt(r.pt)}</td><td class="yen ${cls(r.fin)}">${fmtYen(r.fin)}${r.fee?`<small class="feeNote">場代 −${r.fee.toLocaleString('ja-JP')}</small>`:''}</td></tr>`).join('')}</tbody></table></div>
+        <div class="ro-hide" style="margin-top:6px"><button type="button" class="btn danger" data-arc-del="${a.id}">この記録を完全に消す</button></div>`:''}
+      ${conf==='restore'?`<div class="confirm">この精算を戻しますか？${S.games.length?'今の記録は「過去の精算」に保存してから戻します。':''}<button type="button" class="btn" style="width:auto" data-arc-restore-yes="${a.id}">戻す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
+      ${conf==='del'?`<div class="confirm">完全に消すと戻せません。消しますか？<button type="button" class="btn danger" data-arc-del-yes="${a.id}">消す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
+    </div>`; }).join('');
+}
+$('archiveList').addEventListener('click',async e=>{
+  const t=e.target.closest('button'); if(!t) return; const d=t.dataset; arcMsg='';
+  if(d.arcView){ arcOpen=arcOpen===d.arcView?null:d.arcView; arcConfirm=null; }
+  if(d.arcRestore){ arcConfirm={id:d.arcRestore,kind:'restore'}; }
+  if(d.arcDel){ arcConfirm={id:d.arcDel,kind:'del'}; }
+  if(d.arcNo){ arcConfirm=null; }
+  if(d.arcDelYes){ S.archives=S.archives.filter(a=>a.id!==d.arcDelYes); arcConfirm=null; arcOpen=null; save(); }
+  if(d.arcRestoreYes){
+    const a=S.archives.find(x=>x.id===d.arcRestoreYes); if(!a) return; t.disabled=true;
+    try{
+      if(S.games.length) await archiveCurrent();
+      if(S.cloud) await Promise.all(a.snap.games.map(g=>{ const dd=Object.assign({},g); delete dd.id; delete dd.archived; return Cloud.setGame(g.id,{deleted:false,data:dd}); }));
+      const s=clone(a.snap);
+      Object.assign(S,{rules:s.rules,names:s.names,members:s.members,chips:s.chips,fee:s.fee,seat:s.seat,games:s.games,draft:{}});
+      S.archives=S.archives.filter(x=>x.id!==a.id); normalize(); arcConfirm=null; arcOpen=null;
+      arcMsg=`${fmtDT(a.at)}の精算を戻しました`; update();
+    }catch(err){ arcMsg='戻せませんでした（通信を確認してください）'; }
+  }
+  renderArchives();
+});
 $('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
 
 /* ---------- 撮影読み取り ---------- */
@@ -517,7 +628,7 @@ function uuid(){ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID()
 function canon(v){ if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
   if(v&&typeof v==='object') return '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
   return JSON.stringify(v===undefined?null:v); }
-const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee});
+const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee,archives:s.archives||[]});
 const Sync=(function(){
   let lastShared=null, timer=null, unsub=null, user=null, loaded=false, msg='', members=[], tables=null, busy=false;
   const pk=()=>tKey(S.cloud.id)+':pending';
@@ -550,7 +661,7 @@ const Sync=(function(){
     Object.assign(S.cloud,{name:row.name,invite:row.invite_token,viewTok:row.view_token,owner:row.created_by});
     const st=row.state||{};
     if(st.rules&&canon(sharedOf(st))!==lastShared&&!S.cloud.dirty){
-      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'}});
+      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'},archives:(st.archives||[]).slice()});
       normalize(); lastShared=canon(sharedOf(S));
     }
   }
@@ -701,7 +812,7 @@ async function viewLoop(){
     if(!d){ S.viewErr='このリンクは無効になっています'; }
     else{
       const st=d.state||{};
-      Object.assign(S,{rules:st.rules||S.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'},
+      Object.assign(S,{rules:st.rules||S.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'},archives:(st.archives||[]).slice(),
         games:(d.games||[]).map(x=>Object.assign({},x.data,{id:x.id})).sort((a,b)=>(a.t||0)-(b.t||0)),viewName:d.name,viewErr:''});
       normalize();
     }
@@ -722,7 +833,7 @@ function show(v){
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
 
-function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
+function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
 if(RO){ document.body.classList.add('ro'); show('total'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
 else {
   const jt=params.get('join'); if(jt&&Cloud.configured){ lsSet(KEY+':join',jt); S.view='share'; }

@@ -161,6 +161,8 @@
     <div class="sec">
       <h2>記録<span class="sub" id="gameCount"></span></h2>
       <div id="gameList"></div>
+      <div class="ro-hide" style="margin-top:10px"><button type="button" class="btn ghost" id="trashToggle">ゴミ箱を見る</button></div>
+      <div class="panel ro-hide" id="trashBox" hidden style="margin-top:10px"></div>
     </div>
   </section>
 
@@ -195,13 +197,17 @@
     </div>
     <div class="sec ro-hide">
       <div class="panel">
-        <div class="toggle"><span>記録をすべて消して新しい卓を始める</span><button type="button" class="btn danger" id="resetAll">リセット</button></div>
-        <div class="confirm" id="resetConfirm" hidden>
-          <span>半荘の記録とチップをすべて消します。ルールとメンバーは残ります。</span>
-          <button type="button" class="btn danger" id="resetYes">消す</button>
+        <div class="toggle"><span>この精算を保存して新しく始める</span><button type="button" class="btn ghost" id="resetAll">保存して新しく始める</button></div>
+        <div class="confirm" id="resetConfirm" hidden style="color:var(--ink)">
+          <span>今の記録・チップ・場代を「過去の精算」に保存して、新しく始めます。ルールとメンバーはそのまま残ります。</span>
+          <button type="button" class="btn" style="width:auto" id="resetYes">保存して始める</button>
           <button type="button" class="btn ghost" id="resetNo">やめる</button>
         </div>
       </div>
+    </div>
+      <div class="sec">
+      <h2>過去の精算<span class="sub">保存した精算を見る・戻す</span></h2>
+      <div class="panel" id="archiveList"></div>
     </div>
   </section>
 

@@ -35,6 +35,11 @@ const Cloud=(function(){
   async function rename(id,name){ const c=await load(); ok(await c.from('mj_tables').update({name}).eq('id',id)); }
   async function addGame(tid,id,data,uid){ const c=await load(); ok(await c.from('mj_games').insert({id,table_id:tid,data,created_by:uid})); }
   async function deleteGame(id){ const c=await load(); ok(await c.from('mj_games').update({deleted:true}).eq('id',id)); }
+  // ゴミ箱：削除から30日以内の半荘（「過去の精算」に保存したものは除く）
+  async function trash(tid){ const c=await load(); const since=new Date(Date.now()-30*864e5).toISOString();
+    const rows=ok(await c.from('mj_games').select('id,data,updated_at').eq('table_id',tid).eq('deleted',true).gte('updated_at',since).order('updated_at',{ascending:false}));
+    return rows.filter(r=>!(r.data&&r.data.archived)); }
+  async function setGame(id,fields){ const c=await load(); ok(await c.from('mj_games').update(fields).eq('id',id)); }
   async function resetLinks(id){ const c=await load(); return ok(await c.rpc('mj_reset_links',{p_table:id})); }
   async function leave(tid,uid){ const c=await load(); ok(await c.from('mj_members').delete().eq('table_id',tid).eq('user_id',uid)); }
   async function view(token){ const c=await load(); return ok(await c.rpc('mj_view_table',{p_token:token})); }
@@ -46,5 +51,5 @@ const Cloud=(function(){
       .subscribe();
     return ()=>{ try{ sb.removeChannel(ch); }catch(e){} };
   }
-  return {configured,load,session,signIn,signOut,onAuth,listTables,createTable,join,fetchTable,saveState,rename,addGame,deleteGame,resetLinks,leave,view,subscribe};
+  return {configured,load,session,signIn,signOut,onAuth,listTables,createTable,join,fetchTable,saveState,rename,addGame,deleteGame,trash,setGame,resetLinks,leave,view,subscribe};
 })();

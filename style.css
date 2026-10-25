@@ -135,6 +135,9 @@ button{cursor:pointer}
 .trow:first-child{border-top:0;padding-top:0}
 .trow:last-child{padding-bottom:0}
 .gbtn{display:flex;align-items:center;justify-content:center;gap:8px}
+/* 過去の精算 */
+.arc+.arc{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+.arc .tw{margin-top:8px}
 /* 飛び賞 */
 .tobi{display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;background:var(--warn-soft);border:1px solid var(--warn)}
 .tobi .q{font-size:13px;font-weight:700;color:var(--warn)}
