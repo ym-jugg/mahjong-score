@@ -21,7 +21,7 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>麻雀スコア帳<small id="modeLbl"></small></h1></div>
+    <div class="brand"><h1>麻雀スコア帳<small id="modeLbl"></small></h1><button type="button" class="menubtn ro-hide" id="menuBtn" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span>メニュー</button></div>
     <div class="chips" id="ruleChips"></div>
   </header>
   <div id="cloudState" class="cloudbar" hidden></div>
@@ -230,14 +230,22 @@
 
 <nav class="tabs" aria-label="画面切り替え">
   <div class="in">
-    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール</button>
-    <button type="button" data-view="players" class="ro-hide"><span class="k">人</span>メンバー</button>
+    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール・メンバー</button>
     <button type="button" data-view="game"><span class="k">局</span>対局</button>
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
-    <button type="button" data-view="stats" class="ro-hide"><span class="k">績</span>成績</button>
-    <button type="button" data-view="share" class="ro-hide cloud-only"><span class="k">共</span>共有</button>
   </div>
 </nav>
+
+<dialog id="menu" class="sheet" aria-labelledby="menuTitle">
+  <div class="sheet-in">
+    <div class="sheet-hd"><h2 id="menuTitle">メニュー</h2><button type="button" class="btn ghost" id="menuClose">閉じる</button></div>
+    <div class="menulist">
+      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>自分の収支・着順・推移グラフ</small></span></button>
+      <button type="button" data-go="share" class="cloud-only"><span class="k">共</span><span><b>共有・ログイン</b><small>Googleでログイン、卓の共有・招待リンク</small></span></button>
+      <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
+    </div>
+  </div>
+</dialog>
 <script src="config.js"></script>
 <script src="cloud.js"></script>
 <script src="ocr.js"></script>

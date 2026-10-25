@@ -557,7 +557,7 @@ $('archiveList').addEventListener('click',async e=>{
   }
   renderArchives();
 });
-$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
+$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('rules'); update(); setTimeout(()=>{const f=$('name0'); if(f){ $('v-players').scrollIntoView({block:'start'}); f.focus({preventScroll:true}); }},50); });
 
 /* ---------- 撮影読み取り ---------- */
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
@@ -887,8 +887,8 @@ async function renderStats(force){
   const all=statsData;
   if(!all.length){
     box.innerHTML=(statsErr?`<div class="check ng" style="margin:0">${esc(statsErr)}</div>`:'')+`<div class="panel"><div class="row"><b>まだ成績がありません</b>
-      <span class="hint">メンバー画面で自分の名前の横にある「自分」を押すと、その卓の記録（過去の精算も含む）が自分の成績として集計されます。</span>
-      ${Cloud.configured&&!Sync.user?'<span class="hint">Googleでログインすると、共有の卓の成績もまとめて見られます（共有タブから）。</span>':''}</div></div>`;
+      <span class="hint">「ルール・メンバー」画面で自分の名前の横にある「自分」を押すと、その卓の記録（過去の精算も含む）が自分の成績として集計されます。</span>
+      ${Cloud.configured&&!Sync.user?'<span class="hint">Googleでログインすると、共有の卓の成績もまとめて見られます（メニューの「共有・ログイン」から）。</span>':''}</div></div>`;
     return;
   }
   const now=new Date(), y0=new Date(now.getFullYear(),0,1).getTime(), m0=new Date(now.getFullYear(),now.getMonth(),1).getTime();
@@ -979,16 +979,28 @@ $('statsReload').addEventListener('click',()=>renderStats(true));
 /* ---------- nav ---------- */
 function show(v){
   S.view=v;
-  if(RO&&(v==='rules'||v==='players'||v==='share'||v==='stats')) v='total';
+  if(v==='players') v='rules';  // メンバーはルール画面の下にまとめた
+  if(RO&&(v==='rules'||v==='share'||v==='stats')) v='total';
   S.view=v;
-  ['rules','players','game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
+  ['rules','game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
+  $('v-players').hidden=v!=='rules';
+  $('menuBtn').classList.toggle('on',v==='stats'||v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
-  if(v==='players'&&S.cloud&&Sync.user) Sync.reloadMembers().then(renderPlayers).catch(()=>{});
+  if(v==='rules'&&S.cloud&&Sync.user) Sync.reloadMembers().then(renderPlayers).catch(()=>{});
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   save();
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
+// メニュー（成績・共有など、たまに使う画面）
+const menu=$('menu');
+$('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
+$('menuClose').addEventListener('click',()=>menu.close());
+menu.addEventListener('click',e=>{
+  if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる
+  const b=e.target.closest('[data-go]'); if(!b) return;
+  menu.close(); show(b.dataset.go); update(); window.scrollTo(0,0);
+});
 
 function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
 if(RO){ document.body.classList.add('ro'); show('total'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
