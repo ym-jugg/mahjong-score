@@ -103,8 +103,8 @@ button{cursor:pointer}
 .wind{font-family:var(--serif);font-size:12px;color:var(--muted);margin-left:6px}
 .tieNote{font-size:11px;color:var(--warn);margin-left:6px;font-weight:700}
 .num-b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--felt-soft);color:var(--felt);font-family:var(--mono);font-weight:600;font-size:13px;flex:none}
-.entry{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"nm nm" "wd pin";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
-.entry .nm{grid-area:nm}.entry .winds{grid-area:wd}.entry .pin{grid-area:pin}
+.entry{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm wd" "pin pin";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
+.entry .nm{grid-area:nm}.entry .winds{grid-area:wd}.entry .pin,.entry .stp{grid-area:pin}
 .entry:first-of-type{border-top:0}
 .entry .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .nm small{display:block;font-size:11px;color:var(--muted);font-weight:500}
@@ -148,15 +148,26 @@ button{cursor:pointer}
 .tobi .seg{margin-top:6px}
 .tobi .seg button:not([aria-pressed="true"]){background:var(--surface)}
 .tobiLine{font-size:12px;color:var(--warn);margin-top:4px}
+/* 持ち点の −／＋ 入力 */
+.stp{display:grid;grid-template-columns:52px minmax(0,1fr) 52px;gap:6px;align-items:stretch;height:48px}
+.stb{border:1px solid var(--line);background:var(--surface2);border-radius:10px;font-size:24px;font-weight:600;line-height:1;color:var(--felt);touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.stb:active{background:var(--felt-soft)}
+.stv{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface2);overflow:hidden;min-width:0}
+.stv:focus-within{border-color:var(--felt)}
+.stv .sgn{width:34px;height:100%;border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;flex:none}
+.stv input{border:0;background:transparent;outline:none;text-align:right;width:100%;min-width:0;font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;padding:0 2px 0 6px;color:var(--ink)}
+.stv .zz{font-size:13px;color:var(--muted);padding:0 10px 0 4px}
+.stp.def .stv input{color:var(--muted);opacity:.5;font-weight:500}
+input::placeholder{color:var(--muted);opacity:.45}
 /* scan */
 .camrow{display:flex;gap:8px;flex-wrap:wrap}
 .btn.cam{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;flex:1 1 220px;font-size:15px;padding:11px 14px}
 .btn.cam svg{width:20px;height:20px;flex:none}
 .scan{margin-top:12px;border:1px solid var(--felt);border-radius:12px;padding:12px;background:var(--surface2);display:grid;gap:10px}
 .scan canvas{width:100%;height:auto;border-radius:8px;background:#000;display:block}
-.scan .entry{grid-template-columns:minmax(0,1fr) 160px;grid-template-areas:"nm pin" "rl pin"}
+.scan .entry{grid-template-columns:minmax(0,1fr);grid-template-areas:"nm" "rl" "pin"}
 .scan .entry .role{grid-area:rl;font-size:12px;color:var(--muted)}
-.scan .entry.miss .pin{border-color:var(--shu);background:var(--shu-soft)}
+.scan .entry.miss .stv{border-color:var(--shu);background:var(--shu-soft)}
 .scan .entry .raw{font-family:var(--mono);color:var(--warn)}
 .busy{font-size:13px;color:var(--muted)}
 /* results */
@@ -211,7 +222,7 @@ nav.tabs button[aria-current="page"] .k{color:var(--shu)}
 @media (max-width:420px){
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wb{width:30px;height:32px}
-  .scan .entry{grid-template-columns:minmax(0,1fr) 140px}
+
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 

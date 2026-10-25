@@ -51,7 +51,10 @@ function normalize(){
   while(S.names.length<6) S.names.push('');
   if(!validSeat(S.seat)) S.seat=defaultSeat();
   // 持ち点の入力は点数そのまま（25000）。以前の百点単位の入力途中データは消す
-  if(S.draftV!==2){ S.draft={}; S.draftV=2; }
+  if(S.draftV!==2&&S.draftV!==3){ S.draft={}; S.draftV=2; }
+  // 符号を別に持っていた入力途中データを、符号つきの値にまとめる
+  if(S.draftV===2){ Object.keys(S.draft).forEach(k=>{ const m=/^p(\d+)$/.exec(k); if(m&&S.draft['s'+m[1]]&&S.draft[k]!=='') S.draft[k]='-'+S.draft[k]; });
+    Object.keys(S.draft).forEach(k=>{ if(/^s\d+$/.test(k)) delete S.draft[k]; }); S.draftV=3; }
 }
 function defaultSeat(){ return idSeat(S.members).map(i=>i<S.rules.players?i:-1); }
 function validSeat(a){ if(!Array.isArray(a)||a.length!==S.members) return false; const n=S.rules.players;
@@ -236,32 +239,64 @@ $('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button')
 $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; S.names[i]=e.target.value; unsample(); renderHeader(); save(); });
 
 /* ---------- game entry ---------- */
-function parseDraft(i){ const d=S.draft['p'+i]; if(d==null||d==='') return null; const n=parseInt(d,10); if(isNaN(n)) return null; return (S.draft['s'+i]?-1:1)*n; }
+// 持ち点：未入力の人は配給原点（25000など）のまま。入力した人だけ draft に値が入る
+const touched=i=>{ const d=S.draft['p'+i]; return d!=null&&d!==''&&d!=='-'&&!isNaN(parseInt(d,10)); };
+function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.start; }
+/* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ） */
+function stepperHTML(key,val,isDef,label){
+  return `<div class="stp ${isDef?'def':''}" data-k="${key}">
+    <button type="button" class="stb" data-d="-100" aria-label="${label}を100点減らす">−</button>
+    <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${val}" aria-label="${label}の持ち点"><span class="zz">点</span></div>
+    <button type="button" class="stb" data-d="100" aria-label="${label}を100点増やす">＋</button></div>`;
+}
+let hold=null;
+function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
+['pointerup','pointercancel','blur'].forEach(ev=>addEventListener(ev,stopHold));
+function bindStepper(box,get,set){
+  const apply=(stp,d)=>{ const k=stp.dataset.k, v=get(k)+d; set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=v; stp.classList.remove('def'); };
+  box.addEventListener('pointerdown',e=>{
+    const b=e.target.closest('.stb'); if(!b) return; e.preventDefault(); blur();
+    const stp=b.closest('.stp'), d=Number(b.dataset.d); stopHold(); apply(stp,d);
+    let n=0; hold={t:setTimeout(function tick(){ n++; apply(stp,n>12?d*10:d); hold.t=setTimeout(tick,n>12?120:80); },450)};
+  });
+  box.addEventListener('pointerleave',e=>{ if(e.target.closest&&e.target.closest('.stb')) stopHold(); },true);
+  box.addEventListener('contextmenu',e=>{ if(e.target.closest('.stb')) e.preventDefault(); });
+  box.addEventListener('click',e=>{
+    const b=e.target.closest('.stb'); if(b&&e.detail===0){ apply(b.closest('.stp'),Number(b.dataset.d)); return; } // キーボード操作
+    const s=e.target.closest('[data-sgn]'); if(!s) return;
+    const stp=s.closest('.stp'); apply(stp,-2*get(stp.dataset.k));
+  });
+  box.addEventListener('input',e=>{
+    const stp=e.target.closest('.stp'); if(!stp) return;
+    let t=e.target.value.replace(/[−ー－]/g,'-').replace(/[^0-9-]/g,''); t=(t.startsWith('-')?'-':'')+t.replace(/-/g,'');
+    e.target.value=t; stp.classList.remove('def'); set(stp.dataset.k,t);
+  });
+}
 function renderEntry(){
   $('nextTitle').textContent=`第${S.games.length+1}半荘の持ち点`;
   if($('entryList').contains(document.activeElement)) { checkSum(); return; }
   const n=N(), rot=M()>n;
-  $('entryList').innerHTML=idSeat(M()).map(i=>{ const neg=!!S.draft['s'+i], out=S.seat[i]<0;
+  $('entryList').innerHTML=idSeat(M()).map(i=>{ const out=S.seat[i]<0;
     const winds=idSeat(n).map(w=>`<button type="button" class="wb ${w===0?'red':''}" data-p="${i}" data-w="${w}" aria-pressed="${S.seat[i]===w}" aria-label="${esc(nameOf(i))}を${WINDS[w]}家にする">${WINDS[w]}</button>`).join('')
       +(rot?`<button type="button" class="wb nuke" data-p="${i}" data-w="-1" aria-pressed="${out}" aria-label="${esc(nameOf(i))}を抜け番にする">抜</button>`:'');
     const pin=out?`<div class="pin outpin">抜け番</div>`
-      :`<div class="pin"><button type="button" class="sign ${neg?'neg':''}" data-s="${i}" aria-label="プラスとマイナスを切り替え">${neg?'−':'+'}</button><input id="pt${i}" data-i="${i}" inputmode="numeric" placeholder="25000" value="${S.draft['p'+i]??''}" aria-label="${esc(nameOf(i))}の持ち点"><span class="zz">点</span></div>`;
+      :stepperHTML('pt:'+i,parseDraft(i),!touched(i),esc(nameOf(i)));
     return `<div class="entry ${out?'isout':''}"><div class="nm">${esc(nameOf(i))}</div><div class="winds">${winds}</div>${pin}</div>`;}).join('');
   checkSum();
 }
 function checkSum(){
-  const n=N(), vals=seated().map(parseDraft), filled=vals.filter(v=>v!=null).length;
+  const n=N(), vals=seated().map(parseDraft), edited=seated().filter(touched).length;
   const target=S.rules.start*n, sum=vals.reduce((a,b)=>a+(b||0),0), diff=sum-target;
   const el=$('sumCheck');
   if(!seatOK()){ el.className='check ng'; el.innerHTML=`<span>席が決まっていません</span><span>${idSeat(n).map(w=>WINDS[w]).join('')}を1人ずつ選んでください</span>`; $('saveGame').disabled=true; $('autoFill').disabled=true; renderTobi(); return; }
-  if(filled<n){ el.className='check'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span> / ${fmtPts(target)}点</span><span>あと${n-filled}人</span>`; }
+  if(!edited){ el.className='check'; el.innerHTML=`<span>まだ入力されていません</span><span>−／＋か数字で入力</span>`; }
   else if(diff===0){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${diff>0?'':'あと'}<span class="num">${fmtPts(Math.abs(diff))}</span>点${diff>0?'多い':'足りない'}</span>`; }
   const tobiOk=renderTobi();
-  $('saveGame').disabled=!(filled===n&&diff===0&&tobiOk);
-  $('autoFill').disabled=filled!==n-1;
+  $('saveGame').disabled=!(edited>0&&diff===0&&tobiOk);
+  $('autoFill').disabled=edited!==n-1;
 }
-$('entryList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.draft['p'+i]=e.target.value; checkSum(); save(); });
+bindStepper($('entryList'),k=>parseDraft(Number(k.split(':')[1])),(k,v)=>{ S.draft['p'+k.split(':')[1]]=String(v); checkSum(); save(); });
 $('entryList').addEventListener('click',e=>{
   const w=e.target.closest('[data-w]');
   if(w){ // 席を入れ替え：選んだ風の人と交換
@@ -270,11 +305,9 @@ $('entryList').addEventListener('click',e=>{
     else { const q=S.seat.indexOf(nw); if(q>=0&&q!==p) S.seat[q]=S.seat[p]; S.seat[p]=nw; }
     unsample(); blur(); renderEntry(); if(scan) renderScan(); save(); return;
   }
-  const b=e.target.closest('[data-s]'); if(!b) return;
-  const i=b.dataset.s; S.draft['s'+i]=!S.draft['s'+i]; b.classList.toggle('neg',S.draft['s'+i]); b.textContent=S.draft['s'+i]?'−':'+'; checkSum(); save();
 });
 /* 飛び賞：飛んだ人ごとに「飛ばした人」を選ぶ。全員選び終わるまで記録できない */
-function bustedInDraft(){ return S.rules.tobi?seated().filter(p=>{ const v=parseDraft(p); return v!=null&&isBust(v); }):[]; }
+function bustedInDraft(){ return S.rules.tobi?seated().filter(p=>touched(p)&&isBust(parseDraft(p))):[]; }
 function renderTobi(){
   const busted=bustedInDraft(), box=$('tobiBox');
   S.draft.tobi=S.draft.tobi||{};
@@ -292,9 +325,9 @@ function renderTobi(){
 $('tobiBox').addEventListener('click',e=>{ const b=e.target.closest('[data-tb]'); if(!b) return;
   S.draft.tobi=S.draft.tobi||{}; S.draft.tobi[b.dataset.tb]=b.dataset.v==='none'?'none':Number(b.dataset.v); checkSum(); save(); });
 $('autoFill').addEventListener('click',()=>{
-  const n=N(), ps=seated(), vals=ps.map(parseDraft), mi=vals.indexOf(null); if(mi<0) return;
-  const miss=ps[mi], rest=S.rules.start*n-vals.reduce((a,b)=>a+(b||0),0);
-  S.draft['s'+miss]=rest<0; S.draft['p'+miss]=String(Math.abs(rest));
+  const n=N(), ps=seated(), left=ps.filter(p=>!touched(p)); if(left.length!==1) return;
+  const miss=left[0], rest=S.rules.start*n-ps.filter(p=>p!==miss).reduce((a,p)=>a+parseDraft(p),0);
+  S.draft['p'+miss]=String(rest);
   blur(); renderEntry(); save();
 });
 $('clearEntry').addEventListener('click',()=>{ S.draft={}; blur(); renderEntry(); save(); });
@@ -302,7 +335,7 @@ let freshId=null;
 $('saveGame').addEventListener('click',()=>{
   if(!seatOK()) return;
   const pts=idSeat(M()).map(p=>S.seat[p]>=0?parseDraft(p):null);
-  if(seated().some(p=>pts[p]==null)) return;
+  if(!seated().some(touched)) return;
   unsample();
   const id=S.cloud?uuid():(S.games.reduce((m,g)=>Math.max(m,Number(g.id)||0),0))+1;
   const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
@@ -380,7 +413,7 @@ async function runScan(src){
     const sol=SegOCR.solve(res.roles,ks,target);
     if(sol){
       ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
-        vals[k]={neg:v<0,v:String(Math.abs(v)*100)};
+        vals[k]={v:String(v*100)};
         const readTxt=g&&g.value!=null?String(Math.abs(g.value)):'';
         if(sol[k].filled) note[k]='読めなかったため合計から計算';
         else if(!g||g.value==null||(Math.abs(g.value)!==Math.abs(v)&&Math.abs(g.value)!==Math.abs(v)*10)) note[k]='合計に合うように補正';
@@ -392,7 +425,7 @@ async function runScan(src){
       ks.forEach(k=>{ const g=res.roles[k];
         const v=g&&g.value!=null&&g.digits.length>=(div===10?4:3)?g.value/div:null;
         const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
-        vals[k]=ok?{neg:v<0,v:String(Math.abs(v)*100)}:{neg:!!(g&&g.neg),v:''}; });
+        vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
     }
     const st=seated(); scan={res,vals,raw,note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
     $('scanBox').hidden=false; renderScan(true);
@@ -412,31 +445,34 @@ function drawScan(){
     c.strokeRect(g.x0-pad-g.h*.6,g.y0-pad,(g.x1-g.x0)+pad*2+g.h*.6,g.h+pad*2);
     c.fillStyle=c.strokeStyle; c.fillText(nameOf(playerFor(k)),g.x0-g.h*.6,Math.max(14,g.y0-pad-lw*2)); });
 }
-function renderScan(redraw){
+function renderScan(redraw,rows){
   if(!scan) return;
+  if(rows!==false){
   $('segShooter').innerHTML=seated().map(i=>`<button type="button" data-v="${i}">${esc(nameOf(i))}</button>`).join('');
   setSeg($('segShooter'),scan.shooter);
   if(!$('scanRows').contains(document.activeElement)){
-    $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=v.v==='';
+    $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=!!v.miss;
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
       <div class="role">${ROLE_LBL[k]}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:(scan.note[k]?`・<span class="raw">${scan.note[k]}（読み取り「${esc(scan.raw[k]||'—')}」）</span>`:'')}</div>
-      <div class="pin"><button type="button" class="sign ${v.neg?'neg':''}" data-rs="${k}" aria-label="プラスとマイナスを切り替え">${v.neg?'−':'+'}</button><input id="scan_${k}" data-r="${k}" inputmode="numeric" value="${v.v}" placeholder="?" aria-label="${esc(nameOf(p))}の持ち点"><span class="zz">点</span></div></div>`; }).join('');
+      ${stepperHTML('scan:'+k,scanVal(k),v.v==='',esc(nameOf(p)))}</div>`; }).join('');
+  }
   }
   if(redraw!==false) drawScan();
-  const ks=Object.keys(roleOffs()), filled=ks.filter(k=>scan.vals[k].v!=='');
-  const sum=ks.reduce((a,k)=>a+(scan.vals[k].v===''?0:(scan.vals[k].neg?-1:1)*Number(scan.vals[k].v)),0), target=S.rules.start*N(), el=$('scanCheck');
-  if(filled.length<ks.length){ el.className='check ng'; el.innerHTML=`<span>読めなかった人が${ks.length-filled.length}人います</span><span>赤い欄を入力してください</span>`; }
+  const ks=Object.keys(roleOffs()), missing=ks.filter(k=>scan.vals[k].miss);
+  const sum=ks.reduce((a,k)=>a+scanVal(k),0), target=S.rules.start*N(), el=$('scanCheck');
+  if(missing.length){ el.className='check ng'; el.innerHTML=`<span>読めなかった人が${missing.length}人います（${fmtPts(S.rules.start)}点のまま）</span><span>赤い欄を−／＋で直してください</span>`; }
   else if(sum===target){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${fmtPts(Math.abs(sum-target))}点${sum>target?'多い':'足りない'}・写真と見比べてください</span>`; }
 }
 $('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const url=URL.createObjectURL(f); runScan(url); e.target.value=''; });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
 $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur(); renderScan(); });
-$('scanRows').addEventListener('input',e=>{ const k=e.target.dataset.r; if(!k) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); scan.vals[k].v=e.target.value; e.target.closest('.entry').classList.toggle('miss',e.target.value===''); renderScan(false); });
-$('scanRows').addEventListener('click',e=>{ const b=e.target.closest('[data-rs]'); if(!b) return; const v=scan.vals[b.dataset.rs]; v.neg=!v.neg; b.classList.toggle('neg',v.neg); b.textContent=v.neg?'−':'+'; renderScan(false); });
+function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }
+bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
+  const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
 $('scanCancel').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; });
 $('scanApply').addEventListener('click',()=>{
-  Object.keys(roleOffs()).forEach(k=>{ const p=playerFor(k), v=scan.vals[k]; if(v.v==='') return; S.draft['p'+p]=v.v; S.draft['s'+p]=v.neg; });
+  Object.keys(roleOffs()).forEach(k=>{ const p=playerFor(k), v=scan.vals[k]; if(v.v===''||v.v==='-') return; S.draft['p'+p]=String(parseInt(v.v,10)); });
   scan=null; $('scanBox').hidden=true; unsample(); blur(); renderEntry(); save();
   $('entryList').scrollIntoView({behavior:'smooth',block:'start'});
 });
