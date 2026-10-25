@@ -30,6 +30,22 @@
     <button type="button" id="startFresh">新しい卓を始める</button>
   </div>
 
+  <!-- メンバー -->
+  <section class="view" id="v-players" hidden>
+    <div class="sec">
+      <h2>メンバー<span class="sub">席（東南西北）は半荘ごとに対局画面で決めます</span></h2>
+      <div class="panel" style="margin-bottom:10px">
+        <div class="row"><span class="lbl">メンバーの人数</span>
+          <div class="seg" id="segMembers"></div>
+          <span class="hint" id="memHint"></span>
+        </div>
+      </div>
+      <div class="panel" id="seatList"></div>
+      <p class="hint" id="meMsg" style="margin:8px 2px 0;color:var(--shu)"></p>
+      <p class="hint" style="margin:4px 2px 0">名前は途中で変えても記録はそのまま残ります。自分の名前の横の「自分」を押すと、成績タブで自分の成績を見られます。成績は欄（番号）ごとに集計されるので、メンバーが入れ替わるときは空いている欄を使ってください。</p>
+    </div>
+  </section>
+
   <!-- ルール -->
   <section class="view" id="v-rules" hidden>
     <div class="sec">
@@ -109,22 +125,6 @@
         <div class="row toggle"><span>後付け</span><button type="button" class="sw" role="switch" id="swAto" aria-label="後付け"></button></div>
         <div class="row"><span class="hint">この2つは記録用です。点数計算には影響しません。</span></div>
       </div>
-    </div>
-  </section>
-
-  <!-- メンバー -->
-  <section class="view" id="v-players" hidden>
-    <div class="sec">
-      <h2>メンバー<span class="sub">席（東南西北）は半荘ごとに対局画面で決めます</span></h2>
-      <div class="panel" style="margin-bottom:10px">
-        <div class="row"><span class="lbl">メンバーの人数</span>
-          <div class="seg" id="segMembers"></div>
-          <span class="hint" id="memHint"></span>
-        </div>
-      </div>
-      <div class="panel" id="seatList"></div>
-      <p class="hint" id="meMsg" style="margin:8px 2px 0;color:var(--shu)"></p>
-      <p class="hint" style="margin:4px 2px 0">名前は途中で変えても記録はそのまま残ります。自分の名前の横の「自分」を押すと、成績タブで自分の成績を見られます。成績は欄（番号）ごとに集計されるので、メンバーが入れ替わるときは空いている欄を使ってください。</p>
     </div>
   </section>
 
@@ -230,7 +230,7 @@
 
 <nav class="tabs" aria-label="画面切り替え">
   <div class="in">
-    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール・メンバー</button>
+    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール</button>
     <button type="button" data-view="game"><span class="k">局</span>対局</button>
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
   </div>

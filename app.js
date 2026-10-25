@@ -887,7 +887,7 @@ async function renderStats(force){
   const all=statsData;
   if(!all.length){
     box.innerHTML=(statsErr?`<div class="check ng" style="margin:0">${esc(statsErr)}</div>`:'')+`<div class="panel"><div class="row"><b>まだ成績がありません</b>
-      <span class="hint">「ルール・メンバー」画面で自分の名前の横にある「自分」を押すと、その卓の記録（過去の精算も含む）が自分の成績として集計されます。</span>
+      <span class="hint">ルール画面で自分の名前の横にある「自分」を押すと、その卓の記録（過去の精算も含む）が自分の成績として集計されます。</span>
       ${Cloud.configured&&!Sync.user?'<span class="hint">Googleでログインすると、共有の卓の成績もまとめて見られます（メニューの「共有・ログイン」から）。</span>':''}</div></div>`;
     return;
   }
