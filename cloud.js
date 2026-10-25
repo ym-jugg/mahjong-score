@@ -27,7 +27,7 @@ const Cloud=(function(){
     const [t,g,m]=await Promise.all([
       c.from('mj_tables').select('*').eq('id',id).maybeSingle(),
       c.from('mj_games').select('id,data,created_at').eq('table_id',id).eq('deleted',false).order('created_at'),
-      c.from('mj_members').select('user_id,display_name,joined_at').eq('table_id',id).order('joined_at')
+      c.from('mj_members').select('user_id,display_name,joined_at,slot').eq('table_id',id).order('joined_at')
     ]);
     return {table:ok(t),games:ok(g),members:ok(m)};
   }
@@ -39,6 +39,18 @@ const Cloud=(function(){
   async function trash(tid){ const c=await load(); const since=new Date(Date.now()-30*864e5).toISOString();
     const rows=ok(await c.from('mj_games').select('id,data,updated_at').eq('table_id',tid).eq('deleted',true).gte('updated_at',since).order('updated_at',{ascending:false}));
     return rows.filter(r=>!(r.data&&r.data.archived)); }
+  async function members(tid){ const c=await load(); return ok(await c.from('mj_members').select('user_id,display_name,joined_at,slot').eq('table_id',tid).order('joined_at')); }
+  async function claimSlot(tid,slot){ const c=await load(); ok(await c.rpc('mj_claim_slot',{p_table:tid,p_slot:slot})); }
+  // 成績用：参加しているすべての卓・自分の欄・記録
+  async function statsData(){
+    const c=await load(); const s=ok(await c.auth.getSession()).session; if(!s) return null;
+    const [m,t,g]=await Promise.all([
+      c.from('mj_members').select('table_id,slot').eq('user_id',s.user.id),
+      c.from('mj_tables').select('id,name,state'),
+      c.from('mj_games').select('table_id,data').eq('deleted',false)
+    ]);
+    return {mem:ok(m),tables:ok(t),games:ok(g)};
+  }
   async function setGame(id,fields){ const c=await load(); ok(await c.from('mj_games').update(fields).eq('id',id)); }
   async function resetLinks(id){ const c=await load(); return ok(await c.rpc('mj_reset_links',{p_table:id})); }
   async function leave(tid,uid){ const c=await load(); ok(await c.from('mj_members').delete().eq('table_id',tid).eq('user_id',uid)); }
@@ -51,5 +63,5 @@ const Cloud=(function(){
       .subscribe();
     return ()=>{ try{ sb.removeChannel(ch); }catch(e){} };
   }
-  return {configured,load,session,signIn,signOut,onAuth,listTables,createTable,join,fetchTable,saveState,rename,addGame,deleteGame,trash,setGame,resetLinks,leave,view,subscribe};
+  return {configured,load,session,signIn,signOut,onAuth,listTables,createTable,join,fetchTable,saveState,rename,addGame,deleteGame,trash,setGame,members,claimSlot,statsData,resetLinks,leave,view,subscribe};
 })();

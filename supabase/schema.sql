@@ -147,3 +147,22 @@ do $$ begin
   begin alter publication supabase_realtime add table public.mj_tables; exception when duplicate_object then null; end;
   begin alter publication supabase_realtime add table public.mj_games;  exception when duplicate_object then null; end;
 end $$;
+
+-- ===== 成績：卓の中で「自分」がどの欄かを記録する =====
+alter table public.mj_members add column if not exists slot int;
+create unique index if not exists mj_members_slot_uniq on public.mj_members (table_id, slot) where slot is not null;
+
+-- 自分の欄を選ぶ（p_slot に null を渡すと解除）
+create or replace function public.mj_claim_slot(p_table uuid, p_slot int)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'ログインが必要です'; end if;
+  if not public.mj_is_member(p_table) then raise exception 'この卓に参加していません'; end if;
+  if p_slot is not null and (p_slot < 0 or p_slot > 5) then raise exception '欄の番号が正しくありません'; end if;
+  if p_slot is not null and exists (select 1 from public.mj_members where table_id = p_table and slot = p_slot and user_id <> auth.uid()) then
+    raise exception 'その欄はほかの人が「自分」に選んでいます';
+  end if;
+  update public.mj_members set slot = p_slot where table_id = p_table and user_id = auth.uid();
+end $$;
+revoke all on function public.mj_claim_slot(uuid, int) from public, anon;
+grant execute on function public.mj_claim_slot(uuid, int) to authenticated;
