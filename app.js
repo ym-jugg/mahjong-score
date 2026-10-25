@@ -41,7 +41,7 @@ const RO=!!VIEW_TOKEN;
 let S;
 function normalize(){
   if(!S||!S.rules) S=sample();
-  S.draft=S.draft||{}; S.games=S.games||[]; S.names=S.names||[]; S.chips=S.chips||[];
+  S.draft=S.draft||{}; S.games=S.games||[]; S.fee=S.fee||{total:0,mode:'equal'}; S.names=S.names||[]; S.chips=S.chips||[];
   S.rules.tie=S.rules.tie||'kicha';
   if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
   // 旧形式（起家だけ保存）からの移行
@@ -243,8 +243,8 @@ $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==nu
 const touched=i=>{ const d=S.draft['p'+i]; return d!=null&&d!==''&&d!=='-'&&!isNaN(parseInt(d,10)); };
 function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.start; }
 /* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ） */
-function stepperHTML(key,val,isDef,label){
-  return `<div class="stp ${isDef?'def':''}" data-k="${key}">
+function stepperHTML(key,val,isDef,label,cmp){
+  return `<div class="stp ${isDef?'def':''} ${cmp?'cmp':''}" data-k="${key}">
     <button type="button" class="stb" data-d="-100" aria-label="${label}を100点減らす">−</button>
     <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${val}" aria-label="${label}の持ち点"><span class="zz">点</span></div>
     <button type="button" class="stb" data-d="100" aria-label="${label}を100点増やす">＋</button></div>`;
@@ -254,15 +254,23 @@ function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
 ['pointerup','pointercancel','blur'].forEach(ev=>addEventListener(ev,stopHold));
 function bindStepper(box,get,set){
   const apply=(stp,d)=>{ const k=stp.dataset.k, v=get(k)+d; set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=v; stp.classList.remove('def'); };
+  // 押した瞬間には動かさない：指を離したタップで1回、指を止めて長押ししたときだけ連続。
+  // スクロール（指が動いた）ときは何もしない
+  let start=null, held=false;
+  const cancel=()=>{ stopHold(); start=null; };
   box.addEventListener('pointerdown',e=>{
-    const b=e.target.closest('.stb'); if(!b) return; e.preventDefault(); blur();
-    const stp=b.closest('.stp'), d=Number(b.dataset.d); stopHold(); apply(stp,d);
-    let n=0; hold={t:setTimeout(function tick(){ n++; apply(stp,n>12?d*10:d); hold.t=setTimeout(tick,n>12?120:80); },450)};
+    const b=e.target.closest('.stb'); if(!b) return;
+    cancel(); held=false; start={x:e.clientX,y:e.clientY};
+    const stp=b.closest('.stp'), d=Number(b.dataset.d);
+    let n=0; hold={t:setTimeout(function tick(){ held=true; n++; apply(stp,n>12?d*10:d); hold.t=setTimeout(tick,n>12?120:80); },500)};
   });
-  box.addEventListener('pointerleave',e=>{ if(e.target.closest&&e.target.closest('.stb')) stopHold(); },true);
+  box.addEventListener('pointermove',e=>{ if(start&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>8) cancel(); });
+  box.addEventListener('pointerleave',e=>{ if(e.target.closest&&e.target.closest('.stb')) cancel(); },true);
+  addEventListener('scroll',cancel,{passive:true,capture:true});
   box.addEventListener('contextmenu',e=>{ if(e.target.closest('.stb')) e.preventDefault(); });
   box.addEventListener('click',e=>{
-    const b=e.target.closest('.stb'); if(b&&e.detail===0){ apply(b.closest('.stp'),Number(b.dataset.d)); return; } // キーボード操作
+    const b=e.target.closest('.stb');
+    if(b){ start=null; if(held){ held=false; return; } blur(); apply(b.closest('.stp'),Number(b.dataset.d)); return; }
     const s=e.target.closest('[data-sgn]'); if(!s) return;
     const stp=s.closest('.stp'); apply(stp,-2*get(stp.dataset.k));
   });
@@ -280,7 +288,7 @@ function renderEntry(){
     const winds=idSeat(n).map(w=>`<button type="button" class="wb ${w===0?'red':''}" data-p="${i}" data-w="${w}" aria-pressed="${S.seat[i]===w}" aria-label="${esc(nameOf(i))}を${WINDS[w]}家にする">${WINDS[w]}</button>`).join('')
       +(rot?`<button type="button" class="wb nuke" data-p="${i}" data-w="-1" aria-pressed="${out}" aria-label="${esc(nameOf(i))}を抜け番にする">抜</button>`:'');
     const pin=out?`<div class="pin outpin">抜け番</div>`
-      :stepperHTML('pt:'+i,parseDraft(i),!touched(i),esc(nameOf(i)));
+      :stepperHTML('pt:'+i,parseDraft(i),!touched(i),esc(nameOf(i)),true);
     return `<div class="entry ${out?'isout':''}"><div class="nm">${esc(nameOf(i))}</div><div class="winds">${winds}</div>${pin}</div>`;}).join('');
   checkSum();
 }
@@ -383,18 +391,43 @@ function renderTotal(){
   const cs=S.chips.reduce((a,b)=>a+(Number(b)||0),0), ct=r.chipInit*n, el=$('chipCheck');
   if(cs===ct){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${cs}</span>枚</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${cs}</span> / ${ct}枚</span><span><span class="num">${Math.abs(cs-ct)}</span>枚${cs>ct?'多い':'足りない'}</span>`; }
-  const ord=idSeat(n).sort((a,b)=>all[b]-all[a]);
+  // 場代：全員で均等、または打った半荘数で按分して、金額から差し引く
+  const played=idSeat(n).map(i=>S.games.filter(g=>g.seat&&g.seat[i]>=0&&g.pts[i]!=null).length);
+  const feeTotal=Math.max(0,Number(S.fee.total)||0);
+  const fee=allocate(feeTotal,S.fee.mode==='games'&&played.some(x=>x>0)?played:idSeat(n).map(()=>1));
+  const fin=idSeat(n).map(i=>yen(all[i])-fee[i]);
+  renderFee(fee,played,feeTotal);
+  const ord=idSeat(n).sort((a,b)=>fin[b]-fin[a]||all[b]-all[a]);
   $('yenCards').className='big'+(n===3?' three':'');
-  $('yenCards').innerHTML=ord.map(i=>`<div class="who"><div class="n">${esc(nameOf(i))}</div><div class="y ${cls(all[i])}">${fmtYen(yen(all[i]))}</div><div class="p">${fmtPt(all[i])}pt</div></div>`).join('');
-  const head=`<tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>半荘</th><th>チップ</th><th>合計pt</th><th>金額</th></tr>`;
-  const body=ord.map(i=>`<tr><td class="nm">${esc(nameOf(i))}<small>${rk[i].join('-')}${outs[i]?`・抜${outs[i]}`:''}</small></td><td class="${cls(tot[i])}">${fmtPt(tot[i])}</td><td class="${cls(chipPt[i])}">${fmtPt(chipPt[i])}</td><td class="${cls(all[i])}"><b>${fmtPt(all[i])}</b></td><td class="yen ${cls(all[i])}">${fmtYen(yen(all[i]))}</td></tr>`).join('');
+  $('yenCards').innerHTML=ord.map(i=>`<div class="who"><div class="n">${esc(nameOf(i))}</div><div class="y ${cls(fin[i])}">${fmtYen(fin[i])}</div><div class="p">${fmtPt(all[i])}pt${fee[i]?`・場代 −${fee[i].toLocaleString('ja-JP')}円`:''}</div></div>`).join('');
+  const head=`<tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>半荘</th><th>チップ</th><th>合計pt</th><th>金額${feeTotal?'<small style="display:block;font-weight:500">場代込み</small>':''}</th></tr>`;
+  const body=ord.map(i=>`<tr><td class="nm">${esc(nameOf(i))}<small>${rk[i].join('-')}${outs[i]?`・抜${outs[i]}`:''}</small></td><td class="${cls(tot[i])}">${fmtPt(tot[i])}</td><td class="${cls(chipPt[i])}">${fmtPt(chipPt[i])}</td><td class="${cls(all[i])}"><b>${fmtPt(all[i])}</b></td><td class="yen ${cls(fin[i])}">${fmtYen(fin[i])}${fee[i]?`<small class="feeNote">場代 −${fee[i].toLocaleString('ja-JP')}</small>`:''}</td></tr>`).join('');
   $('totalTable').innerHTML=`<thead>${head}</thead><tbody>${body}</tbody>`;
 }
+// 合計をぴったり保ったまま、重みに応じて円単位で割り振る
+function allocate(total,w){
+  const W=w.reduce((a,b)=>a+b,0); if(!total||!W) return w.map(()=>0);
+  const raw=w.map(x=>total*x/W), base=raw.map(Math.floor);
+  let rest=total-base.reduce((a,b)=>a+b,0);
+  raw.map((x,i)=>[x-base[i],i]).sort((a,b)=>b[0]-a[0]).forEach(([,i])=>{ if(rest>0&&w[i]>0){ base[i]++; rest--; } });
+  return base;
+}
+function renderFee(fee,played,total){
+  if(document.activeElement!==$('inFee')) $('inFee').value=total?total:'';
+  $('inFee').disabled=RO; $('segFee').querySelectorAll('button').forEach(b=>b.disabled=RO);
+  setSeg($('segFee'),S.fee.mode);
+  if(!total){ $('feeHint').textContent='入れた金額を、精算の金額から差し引きます。'; return; }
+  $('feeHint').textContent=S.fee.mode==='games'
+    ?idSeat(M()).map(i=>`${nameOf(i)} ${played[i]}半荘 ${fee[i].toLocaleString('ja-JP')}円`).join('　')
+    :`1人あたり ${[...new Set(fee)].map(x=>x.toLocaleString('ja-JP')).join('〜')}円（${M()}人）`;
+}
+$('inFee').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,''); S.fee.total=Number(e.target.value)||0; unsample(); renderTotal(); save(); });
+bindSeg($('segFee'),v=>{ S.fee.mode=v; });
 $('chipFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.chips[i]=e.target.value===''?'':Number(e.target.value); unsample(); renderTotal(); save(); });
 $('resetAll').addEventListener('click',()=>{ $('resetConfirm').hidden=false; });
 $('resetNo').addEventListener('click',()=>{ $('resetConfirm').hidden=true; });
-$('resetYes').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.seat=defaultSeat(); $('resetConfirm').hidden=true; unsample(); update(); });
-$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
+$('resetYes').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:S.fee.mode}; S.seat=defaultSeat(); $('resetConfirm').hidden=true; unsample(); update(); });
+$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('players'); update(); setTimeout(()=>{const f=$('name0'); f&&f.focus();},50); });
 
 /* ---------- 撮影読み取り ---------- */
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
@@ -484,7 +517,7 @@ function uuid(){ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID()
 function canon(v){ if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
   if(v&&typeof v==='object') return '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
   return JSON.stringify(v===undefined?null:v); }
-const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat});
+const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee});
 const Sync=(function(){
   let lastShared=null, timer=null, unsub=null, user=null, loaded=false, msg='', members=[], tables=null, busy=false;
   const pk=()=>tKey(S.cloud.id)+':pending';
@@ -517,7 +550,7 @@ const Sync=(function(){
     Object.assign(S.cloud,{name:row.name,invite:row.invite_token,viewTok:row.view_token,owner:row.created_by});
     const st=row.state||{};
     if(st.rules&&canon(sharedOf(st))!==lastShared&&!S.cloud.dirty){
-      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat});
+      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'}});
       normalize(); lastShared=canon(sharedOf(S));
     }
   }
@@ -668,7 +701,7 @@ async function viewLoop(){
     if(!d){ S.viewErr='このリンクは無効になっています'; }
     else{
       const st=d.state||{};
-      Object.assign(S,{rules:st.rules||S.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,
+      Object.assign(S,{rules:st.rules||S.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'},
         games:(d.games||[]).map(x=>Object.assign({},x.data,{id:x.id})).sort((a,b)=>(a.t||0)-(b.t||0)),viewName:d.name,viewErr:''});
       normalize();
     }

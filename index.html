@@ -178,6 +178,18 @@
       </div>
     </div>
     <div class="sec">
+      <h2>場代<span class="sub">精算の金額から差し引きます</span></h2>
+      <div class="panel">
+        <div class="row">
+          <div class="grid2"><div><div class="mini">場代の合計</div><label class="field"><input id="inFee" inputmode="numeric" placeholder="0" aria-label="場代の合計"><span class="unit">円</span></label></div></div>
+        </div>
+        <div class="row"><span class="lbl">分け方</span>
+          <div class="seg" id="segFee"><button type="button" data-v="equal">全員で均等</button><button type="button" data-v="games">打った半荘数で按分</button></div>
+          <span class="hint" id="feeHint"></span>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
       <h2>内訳</h2>
       <div class="panel"><div class="tw"><table id="totalTable"></table></div></div>
     </div>

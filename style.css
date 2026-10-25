@@ -85,8 +85,20 @@ button{cursor:pointer}
 .wind{font-family:var(--serif);font-size:12px;color:var(--muted);margin-left:6px}
 .tieNote{font-size:11px;color:var(--warn);margin-left:6px;font-weight:700}
 .num-b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--felt-soft);color:var(--felt);font-family:var(--mono);font-weight:600;font-size:13px;flex:none}
-.entry{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm wd" "pin pin";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
-.entry .nm{grid-area:nm}.entry .winds{grid-area:wd}.entry .pin,.entry .stp{grid-area:pin}
+.entry{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"nm stp" "wd stp";gap:6px 10px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
+.entry .nm{grid-area:nm;max-width:180px}.entry .winds{grid-area:wd}.entry .pin,.entry .stp{grid-area:stp}
+.scan .entry .stp{grid-area:pin}
+/* 右側：上に点数、下に −／＋ */
+.stp.cmp{grid-template-columns:1fr 1fr;grid-template-areas:"v v" "m p";height:auto;gap:4px}
+.stp.cmp .stv{grid-area:v;height:40px}
+.stp.cmp .stb{height:34px;font-size:20px}
+.stp.cmp .stb[data-d="-100"]{grid-area:m}
+.stp.cmp .stb[data-d="100"]{grid-area:p}
+.stp.cmp .stv input{font-size:18px;padding-left:2px}
+.stp.cmp .stv .sgn{width:28px}
+.stp.cmp .stv .zz{padding:0 8px 0 2px}
+.entry .pin.outpin{height:78px}
+.feeNote{display:block;font-size:10px;font-weight:500;color:var(--muted)}
 .entry:first-of-type{border-top:0}
 .entry .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .nm small{display:block;font-size:11px;color:var(--muted);font-weight:500}
