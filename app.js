@@ -844,7 +844,7 @@ async function viewLoop(){
 
 /* ---------- 成績 ---------- */
 let statsData=null, statsErr='', statsLoading=false;
-const statsF={period:'all',table:'all',players:4};
+const statsF={period:'all',table:'all',players:4,fee:true};
 // ある精算（ルール・記録・チップ・場代）の中で、欄 slot の人の成績を計算する
 function sessionEval(st,slot){
   const saved=S;
@@ -856,7 +856,7 @@ function sessionEval(st,slot){
       return {fp:(g.t||0)+':'+g.pts.join(','),t:g.t||0,rank:c.rank[slot],n:c.order.length,pt:c.score[slot],raw:g.pts[slot],tobi:c.tobi.some(([p])=>p===slot)}; }).filter(Boolean);
     if(!games.length) return null;
     const t=computeTotals();
-    return {games,pt:t.all[slot],fin:t.fin[slot],players:S.rules.players,name:(S.names[slot]||'').trim()};
+    return {games,pt:t.all[slot],fin:t.fin[slot],fee:t.fee[slot]||0,players:S.rules.players,name:(S.names[slot]||'').trim()};
   }finally{ S=saved; }
 }
 async function gatherSessions(){
@@ -896,9 +896,11 @@ async function renderStats(force){
   const playersSet=[...new Set(all.map(s=>s.players))].sort((a,b)=>b-a);
   if(!playersSet.includes(statsF.players)) statsF.players=playersSet[0];
   if(statsF.table!=='all'&&!tables.some(([k])=>k===statsF.table)) statsF.table='all';
-  const ss=all.filter(s=>s.players===statsF.players&&(statsF.table==='all'||s.key===statsF.table)&&(statsF.period==='all'||s.at>=(statsF.period==='year'?y0:m0)));
+  const ss=all.filter(s=>s.players===statsF.players&&(statsF.table==='all'||s.key===statsF.table)&&(statsF.period==='all'||s.at>=(statsF.period==='year'?y0:m0)))
+    .map(s=>statsF.fee?s:Object.assign({},s,{fin:s.fin+s.fee}));  // 場代なし＝場代を引く前の収支
   const filters=`<div class="sfilters">
     <div class="seg" id="sfPeriod">${[['all','全部'],['year','今年'],['month','今月']].map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${statsF.period===v}">${l}</button>`).join('')}</div>
+    <div class="seg" id="sfFee">${[[1,'場代込み'],[0,'場代なし']].map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${statsF.fee===!!v}">${l}</button>`).join('')}</div>
     ${playersSet.length>1?`<div class="seg" id="sfPlayers">${playersSet.map(n=>`<button type="button" data-v="${n}" aria-pressed="${statsF.players===n}">${n}人麻雀</button>`).join('')}</div>`:''}
     ${tables.length>1?`<label class="field sfsel"><select id="sfTable" aria-label="卓で絞り込む"><option value="all">すべての卓</option>${tables.map(([k,n])=>`<option value="${esc(k)}" ${statsF.table===k?'selected':''}>${esc(n)}</option>`).join('')}</select></label>`:''}
   </div>`;
@@ -923,7 +925,7 @@ async function renderStats(force){
     +`<div class="sec"><h2>月ごとの収支</h2><div class="panel">${monthBars(ss)}</div></div>`
     +`<div class="sec"><h2>これまでの記録</h2><div class="panel"><div class="tw"><table><thead><tr><th>日付<small style="display:block;font-weight:500">卓</small></th><th>半荘</th><th>着順</th><th>pt</th><th>収支</th></tr></thead><tbody>${ss.slice().reverse().map(s=>{ const rc=idSeat(P).map(r=>s.games.filter(g=>g.rank===r).length).join('-');
       return `<tr><td class="nm">${fmtDT(s.at).split(' ')[0]}<small>${esc(s.table)}</small></td><td>${s.games.length}</td><td class="ranks">${rc}</td><td class="${cls(s.pt)}">${fmtPt(s.pt)}</td><td class="yen ${cls(s.fin)}">${fmtYen(s.fin)}</td></tr>`; }).join('')}</tbody></table></div></div></div>`
-    +`<p class="hint">収支はチップと場代を含みます。今まだ精算中の記録も含めて集計しています。</p>`;
+    +`<p class="hint">収支はチップを含み、${statsF.fee?'場代を差し引いた金額です':'場代を引く前の金額です'}。今まだ精算中の記録も含めて集計しています。</p>`;
   window.__trend=ss;
 }
 // 収支の推移：累計の折れ線（1本なので凡例なし、終点にだけ値を表示）
@@ -969,8 +971,8 @@ $('statsBox').addEventListener('click',e=>{
   const t=e.target.closest('[data-ti]');
   if(t){ const ss=window.__trend||[]; let acc=0; const i=Number(t.dataset.ti); ss.slice(0,i+1).forEach(s=>acc+=s.fin); const s=ss[i];
     $('trendInfo').innerHTML=`<b>${fmtDT(s.at).split(' ')[0]}</b> ${esc(s.table)}：${fmtYen(s.fin)}（${s.games.length}半荘）・累計 <b>${fmtYen(acc)}</b>`; return; }
-  const b=e.target.closest('#sfPeriod button,#sfPlayers button'); if(!b) return;
-  if(b.closest('#sfPeriod')) statsF.period=b.dataset.v; else statsF.players=Number(b.dataset.v);
+  const b=e.target.closest('#sfPeriod button,#sfPlayers button,#sfFee button'); if(!b) return;
+  if(b.closest('#sfPeriod')) statsF.period=b.dataset.v; else if(b.closest('#sfFee')) statsF.fee=b.dataset.v==='1'; else statsF.players=Number(b.dataset.v);
   renderStats();
 });
 $('statsBox').addEventListener('change',e=>{ if(e.target.id==='sfTable'){ statsF.table=e.target.value; renderStats(); } });
