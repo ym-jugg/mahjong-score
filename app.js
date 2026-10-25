@@ -75,7 +75,9 @@ const M=()=>S.members;
 const names=()=>S.names.slice(0,M());
 const seated=()=>idSeat(M()).filter(p=>S.seat[p]>=0);
 const seatOK=()=>idSeat(N()).every(w=>S.seat.filter(x=>x===w).length===1);
-const rate=()=>Number(S.rules.rate);
+const rate=()=>Number(S.rules.rate)||0;
+const RATE_PRESETS=['0.5','0.75','1','2'];
+const rateYen=()=>Math.round(rate()*1000)/10;   // 1000点あたりの円（0.75→75）
 const umaArr=()=>S.rules.uma==='custom'?S.rules.umaCustom.slice(0,N()).map(Number):UMA[N()][S.rules.uma]||UMA[N()].none;
 const oka=()=>(S.rules.ret-S.rules.start)*N()/1000;
 
@@ -164,9 +166,11 @@ function renderHeader(){
 function setSeg(el,v){ el.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===String(v)))); }
 function renderRules(){
   const r=S.rules;
-  setSeg($('segPlayers'),r.players); setSeg($('segRate'),r.rate); setSeg($('segRound'),r.round); setSeg($('segTie'),r.tie);
+  setSeg($('segPlayers'),r.players); setSeg($('segRate'),r.rateCustom||!RATE_PRESETS.includes(String(r.rate))?'custom':String(r.rate));
+  $('rateCustomRow').hidden=!(r.rateCustom||!RATE_PRESETS.includes(String(r.rate)));
+  if(document.activeElement!==$('inRateYen')) $('inRateYen').value=rateYen(); setSeg($('segRound'),r.round); setSeg($('segTie'),r.tie);
   $('tieHint').textContent=TIE_HINT[r.tie];
-  $('rateHint').textContent=`1000点＝${rate()*100}円（1pt＝${rate()*100}円）`;
+  $('rateHint').textContent=`1000点＝${rateYen().toLocaleString('ja-JP')}円（1pt＝${rateYen().toLocaleString('ja-JP')}円）。例：+50ptなら${fmtYen(yen(50))}`;
   if(document.activeElement!==$('inStart')) $('inStart').value=r.start;
   if(document.activeElement!==$('inRet')) $('inRet').value=r.ret;
   $('okaHint').textContent=oka()>0?`オカ：トップに +${fix(oka())}pt（${fmtYen(yen(oka()))}）`:oka()<0?'返し点が持ち点より低い設定です':'オカなし';
@@ -198,7 +202,8 @@ bindSeg($('segPlayers'),v=>{
   const k=S.rules; S.rules=Object.assign(defaults(v),{rate:k.rate,round:k.round,tie:k.tie,chipInit:k.chipInit,chipPt:k.chipPt,kuitan:k.kuitan,atozuke:k.atozuke});
   S.members=Math.max(v,S.members); S.games=[]; S.chips=[]; S.draft={}; S.seat=defaultSeat(); unsample();
 });
-bindSeg($('segRate'),v=>{S.rules.rate=v;});
+bindSeg($('segRate'),v=>{ if(v==='custom'){ S.rules.rateCustom=true; setTimeout(()=>$('inRateYen').focus(),0); } else { S.rules.rateCustom=false; S.rules.rate=v; } });
+$('inRateYen').addEventListener('input',e=>{ const v=parseFloat(e.target.value.replace(/[^0-9.]/g,'')); if(v>0){ S.rules.rate=String(Math.round(v*10)/1000); update(); } });
 bindSeg($('segRound'),v=>{S.rules.round=v;});
 bindSeg($('segTie'),v=>{S.rules.tie=v;});
 bindSeg($('segUma'),v=>{S.rules.uma=v;});

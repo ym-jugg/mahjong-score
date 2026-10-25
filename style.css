@@ -67,6 +67,7 @@ button{cursor:pointer}
 /* segmented */
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .seg button{border:1px solid var(--line);background:var(--surface2);border-radius:10px;padding:8px 12px;font-weight:700;min-width:56px}
+.seg button small{display:block;font-size:10px;font-weight:500;opacity:.8;line-height:1.2}
 .seg button[aria-pressed="true"]{background:var(--felt);color:var(--felt-ink);border-color:var(--felt)}
 
 .field{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:0 10px;height:42px}
@@ -218,3 +219,9 @@ nav.tabs button[aria-current="page"] .k{color:var(--shu)}
 html{-webkit-text-size-adjust:100%}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}
+
+/* レートの選択肢は1行に並べる */
+#segRate{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+#segRate button{min-width:0;padding:8px 4px}
+#segRate button{white-space:nowrap;font-size:14px}
+#segRate button small{font-size:9px;letter-spacing:-.02em}
