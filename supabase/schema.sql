@@ -75,6 +75,12 @@ create policy mj_games_insert on public.mj_games for insert to authenticated wit
 create policy mj_games_update on public.mj_games for update to authenticated using (public.mj_is_member(table_id)) with check (public.mj_is_member(table_id));
 
 -- 招待リンク・閲覧リンクの鍵は参加者でも直接は変えられない（作った人だけが作り直せる）
+-- テーブルの権限（Supabaseの「新しいテーブルを自動公開」設定に関係なく必要なものだけ）
+grant usage on schema public to anon, authenticated;
+grant select, delete on public.mj_tables to authenticated;
+grant select, delete on public.mj_members to authenticated;
+grant select, insert, update on public.mj_games to authenticated;
+revoke all on public.mj_tables, public.mj_members, public.mj_games from anon;
 revoke update on public.mj_tables from authenticated, anon;
 grant update (name, state) on public.mj_tables to authenticated;
 revoke insert on public.mj_tables, public.mj_members from authenticated, anon;
