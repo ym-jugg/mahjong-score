@@ -9,26 +9,8 @@
   --sans:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --serif:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme:dark;
-    --bg:#0C1513; --surface:#14201D; --surface2:#1A2825; --ink:#E4EDE8; --muted:#93A59E; --line:#26362F;
-    --felt:#3DB392; --felt-ink:#06201A; --felt-soft:#173A31;
-    --shu:#EE6A4E; --shu-soft:#3A1D16;
-    --tile:#EDE7D6; --tile-edge:#B5AA8C; --tile-back:#1F6B59;
-    --warn:#E6B04A; --warn-soft:#352812;
-    --shadow:0 1px 2px rgba(0,0,0,.4);
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#0C1513; --surface:#14201D; --surface2:#1A2825; --ink:#E4EDE8; --muted:#93A59E; --line:#26362F;
-  --felt:#3DB392; --felt-ink:#06201A; --felt-soft:#173A31;
-  --shu:#EE6A4E; --shu-soft:#3A1D16;
-  --tile:#EDE7D6; --tile-edge:#B5AA8C; --tile-back:#1F6B59;
-  --warn:#E6B04A; --warn-soft:#352812;
-  --shadow:0 1px 2px rgba(0,0,0,.4);
-}
+/* 端末がダークモードでも、いつもライト表示にする */
+:root{color-scheme:only light}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{background:var(--bg);max-width:100%;overflow-x:hidden}
