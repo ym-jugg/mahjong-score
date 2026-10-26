@@ -148,7 +148,7 @@ function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true
 /* ---------- header ---------- */
 function renderHeader(){
   const r=S.rules, u=umaArr();
-  if(Cloud.configured&&!RO) $('shareBtn').textContent=Sync.user?'共有':'ログイン・共有';
+  if(Cloud.configured&&!RO) $('shareBtn').textContent=Sync.user?'ログアウト・共有':'ログイン・共有';
   $('modeLbl').textContent=(N()===4?'4人':'3人')+(M()>N()?`（${M()}人回し）`:'')+'・'+S.games.length+'半荘';
   const umaTxt=r.uma==='none'?'なし':(r.uma==='custom'?u.map(x=>x>0?'+'+x:x).join('/'):(UMA_LBL3[r.uma]&&N()===3?UMA_LBL3[r.uma]:UMA_LBL[r.uma]));
   $('ruleChips').innerHTML=[
@@ -762,9 +762,11 @@ function renderShare(){
         <div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="tableName" value="${esc(c.name||'')}" maxlength="30" aria-label="卓の名前"></label><button type="button" class="btn ghost" data-act="rename">名前を保存</button></div>
         <span class="hint">参加者：${Sync.members.map(x=>esc(x.display_name||'名前なし')).join('、')||'—'}</span></div>
       <div class="row"><span class="lbl">招待リンク（ログインして一緒に入力できる）</span>
-        <div class="linkrow"><input readonly value="${c.invite?esc(baseUrl()+'?join='+c.invite):''}" aria-label="招待リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button></div></div>
+        <div class="linkrow"><input readonly value="${c.invite?esc(baseUrl()+'?join='+c.invite):''}" aria-label="招待リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button><button type="button" class="btn ghost" data-act="qr" data-k="invite" aria-expanded="${!!qrOpen.invite}">QR</button></div>
+        ${qrBox('invite',c.invite?baseUrl()+'?join='+c.invite:'','参加する人のスマホのカメラで読み取ってもらってください')}</div>
       <div class="row"><span class="lbl">閲覧リンク（ログイン不要・見るだけ）</span>
-        <div class="linkrow"><input readonly value="${c.viewTok?esc(baseUrl()+'?view='+c.viewTok):''}" aria-label="閲覧リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button></div>
+        <div class="linkrow"><input readonly value="${c.viewTok?esc(baseUrl()+'?view='+c.viewTok):''}" aria-label="閲覧リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button><button type="button" class="btn ghost" data-act="qr" data-k="view" aria-expanded="${!!qrOpen.view}">QR</button></div>
+        ${qrBox('view',c.viewTok?baseUrl()+'?view='+c.viewTok:'','見る人のスマホのカメラで読み取ってもらってください')}
         <span class="hint">リンクを知っている人は誰でも開けます。広まってしまったときは作り直してください。</span></div>
       <div class="row actions" style="margin-top:0">
         ${owner?'<button type="button" class="btn ghost" data-act="reset">リンクを作り直す</button>':''}
@@ -778,6 +780,18 @@ function renderShare(){
   box.innerHTML=`${m}${cur}
     <div class="sec"><h2 style="margin-top:6px">参加している卓</h2><div class="panel">${list}</div></div>
     <div class="panel"><div class="toggle"><span class="hint">${esc(u.email||'')} でログイン中</span><button type="button" class="btn ghost" data-act="logout">ログアウト</button></div></div>`;
+  fillQR();
+}
+// QRコード：ボタンを押したときだけライブラリを読み込んで表示
+const qrOpen={};
+function qrBox(k,url,cap){ return `<div class="qrbox" data-qr="${k}" data-url="${esc(url)}" ${qrOpen[k]&&url?'':'hidden'}><div class="qrimg"></div><span class="hint">${cap}</span></div>`; }
+let qrLib=null;
+function loadQR(){ return qrLib||(qrLib=new Promise((ok,ng)=>{ const s=document.createElement('script'); s.src='lib/qrcode.js'; s.onload=()=>ok(window.qrcode); s.onerror=()=>{ qrLib=null; ng(new Error('QRコードを表示できませんでした（通信を確認してください）')); }; document.head.appendChild(s); })); }
+async function fillQR(){
+  const boxes=[...document.querySelectorAll('.qrbox:not([hidden])')]; if(!boxes.length) return;
+  try{ const qrcode=await loadQR();
+    boxes.forEach(b=>{ const q=qrcode(0,'M'); q.addData(b.dataset.url); q.make(); b.querySelector('.qrimg').innerHTML=q.createSvgTag({cellSize:4,margin:4,scalable:true,alt:'QRコード'}); });
+  }catch(e){ boxes.forEach(b=>b.querySelector('.qrimg').textContent=e.message); }
 }
 $('shareBox').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]'); if(!b) return; const act=b.dataset.act;
@@ -786,6 +800,7 @@ $('shareBox').addEventListener('click',async e=>{
     if(act==='login') await Cloud.signIn();
     if(act==='logout'){ await Cloud.signOut(); Sync.toLocal(); }
     if(act==='copy') copyText(b.parentElement.querySelector('input').value,b);
+    if(act==='qr'){ const k=b.dataset.k, box=document.querySelector(`.qrbox[data-qr="${k}"]`); qrOpen[k]=!qrOpen[k]; box.hidden=!qrOpen[k]; b.setAttribute('aria-expanded',qrOpen[k]); if(qrOpen[k]) fillQR(); return; }
     if(act==='open') await Sync.switchTo(b.dataset.id);
     if(act==='local'){ Sync.toLocal(); show('share'); }
     if(act==='rename'){ const n=$('tableName').value.trim()||'麻雀卓'; await Cloud.rename(S.cloud.id,n); S.cloud.name=n; Sync.msg=''; Sync.refreshTables(); update(); }
@@ -929,7 +944,11 @@ function show(v){
   save();
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
-$('shareBtn').addEventListener('click',()=>{ show('share'); update(); window.scrollTo(0,0); });
+// もう一度押すと、開く前の画面（ルール・対局・精算など）に戻る
+let backView='game';
+$('shareBtn').addEventListener('click',()=>{
+  if(S.view==='share') show(backView==='share'?'game':backView); else { backView=S.view; show('share'); }
+  update(); window.scrollTo(0,0); });
 // メニュー（成績など、たまに使う画面）
 const menu=$('menu');
 $('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
