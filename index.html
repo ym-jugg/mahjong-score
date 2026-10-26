@@ -41,8 +41,7 @@
         </div>
       </div>
       <div class="panel" id="seatList"></div>
-      <p class="hint" id="meMsg" style="margin:8px 2px 0;color:var(--shu)"></p>
-      <p class="hint" style="margin:4px 2px 0">名前は途中で変えても記録はそのまま残ります。自分の名前の横の「自分」を押すと、成績タブで自分の成績を見られます。成績は欄（番号）ごとに集計されるので、メンバーが入れ替わるときは空いている欄を使ってください。</p>
+      <p class="hint" style="margin:8px 2px 0">名前は途中で変えても記録はそのまま残ります。</p>
     </div>
   </section>
 
@@ -214,7 +213,7 @@
   <!-- 成績 -->
   <section class="view" id="v-stats" hidden>
     <div class="sec">
-      <div class="sechead"><h2>成績<span class="sub">「自分」に選んだ欄の記録を集計</span></h2><button type="button" class="btn ghost" id="statsReload">更新</button></div>
+      <h2>成績<span class="sub">この卓のメンバー全員</span></h2>
       <div id="statsBox" style="display:grid;gap:14px"></div>
     </div>
   </section>
@@ -240,7 +239,7 @@
   <div class="sheet-in">
     <div class="sheet-hd"><h2 id="menuTitle">メニュー</h2><button type="button" class="btn ghost" id="menuClose">閉じる</button></div>
     <div class="menulist">
-      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>自分の収支・着順・推移グラフ</small></span></button>
+      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>メンバー全員のトップ率・連対率・推移グラフ</small></span></button>
       <button type="button" data-go="share" class="cloud-only"><span class="k">共</span><span><b>共有・ログイン</b><small>Googleでログイン、卓の共有・招待リンク</small></span></button>
       <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>

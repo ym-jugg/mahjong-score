@@ -231,26 +231,8 @@ function renderPlayers(){
   $('memHint').textContent=(M()>N()?`${N()}人で打ち、毎回${M()-N()}人が抜け番になります。抜け番は半荘ごとに対局画面で選びます。`:'全員が毎回卓に入ります。')
     +(used>N()?`（記録に${used}人目まで入っているので、それより少なくはできません）`:'');
   if($('seatList').contains(document.activeElement)) return;
-  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="num-b">${i+1}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label>${meButton(i)}</div>`).join('');
-  $('meMsg').textContent=meMsg;
+  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="num-b">${i+1}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
 }
-// 「自分」の欄：共有の卓はアカウントごと、この端末だけのデータは端末に保存
-let meMsg='';
-function claimMap(){ const m={}; if(S.cloud) (Sync.members||[]).forEach(x=>{ if(x.slot!=null) m[x.slot]={mine:Sync.user&&x.user_id===Sync.user.id,name:x.display_name||'ほかの人'}; }); return m; }
-function meButton(i){
-  if(S.cloud){ const c=claimMap()[i];
-    if(c&&!c.mine) return `<span class="claimed" title="${esc(c.name)}さんが「自分」に選んでいます">${esc(c.name)}</span>`;
-    return `<button type="button" class="mebtn" data-me="${i}" aria-pressed="${!!(c&&c.mine)}" ${Sync.user?'':'disabled'}>自分</button>`; }
-  return `<button type="button" class="mebtn" data-me="${i}" aria-pressed="${S.me===i}">自分</button>`;
-}
-$('seatList').addEventListener('click',async e=>{
-  const b=e.target.closest('[data-me]'); if(!b) return; const i=Number(b.dataset.me); blur(); meMsg='';
-  if(!S.cloud){ S.me=S.me===i?null:i; save(); statsData=null; renderPlayers(); return; }
-  const mine=b.getAttribute('aria-pressed')==='true'; b.disabled=true;
-  try{ await Cloud.claimSlot(S.cloud.id,mine?null:i); await Sync.reloadMembers(); statsData=null; }
-  catch(err){ meMsg=err.message; }
-  renderPlayers();
-});
 $('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||b.disabled) return;
   const k=Number(b.dataset.v); if(k===M()) return;
   S.members=k;
@@ -748,8 +730,7 @@ const Sync=(function(){
   addEventListener('online',()=>{ flush(); renderHeader(); });
   addEventListener('offline',()=>renderHeader());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.cloud&&user) open(S.cloud.id).catch(()=>{}); });
-  async function reloadMembers(){ if(S.cloud) members=await Cloud.members(S.cloud.id); }
-  return {init,start,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,reloadMembers,
+  return {init,start,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
     pendingCount:()=>pending().length, online:()=>navigator.onLine!==false,
     get user(){return user}, get members(){return members}, get tables(){return tables}, get msg(){return msg}, set msg(v){msg=v},
     get busy(){return busy}, set busy(v){busy=v}, displayName};
@@ -791,7 +772,7 @@ function renderShare(){
       <div class="confirm" id="leaveConfirm" hidden><span>この卓から抜けます。もう一度入るには招待リンクが必要です。</span><button type="button" class="btn danger" data-act="leaveYes">抜ける</button><button type="button" class="btn ghost" data-act="leaveNo">やめる</button></div>
     </div>`
     :`<div class="panel"><div class="row"><b>今はこの端末だけのデータを使っています。</b>
-        <span class="hint">今のルール・メンバー・記録をもとに共有の卓を作れます。この端末のデータはそのまま残ります。誰も招待しなければ、自分専用の保存場所として使えて、成績タブにも反映されます。${S.sample?'（サンプルの記録とメンバーは入れずに作ります）':''}</span></div>
+        <span class="hint">今のルール・メンバー・記録をもとに共有の卓を作れます。この端末のデータはそのまま残ります。${S.sample?'（サンプルの記録とメンバーは入れずに作ります）':''}</span></div>
       <div class="row"><div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="newTableName" placeholder="卓の名前（例：金曜の会）" maxlength="30" aria-label="新しい卓の名前"></label><button type="button" class="btn" style="width:auto" data-act="create" ${Sync.busy?'disabled':''}>共有の卓を作る</button></div></div></div>`;
   box.innerHTML=`${m}${cur}
     <div class="sec"><h2 style="margin-top:6px">参加している卓</h2><div class="panel">${list}</div></div>
@@ -818,7 +799,6 @@ $('shareBox').addEventListener('click',async e=>{
       const base=S.sample?Object.assign({},S,{names:['','','','','',''],chips:[],games:[]}):S;
       const games=base.games.map(g=>{ const d=Object.assign({},g); delete d.id; return {id:uuid(),data:d}; });
       const t=await Cloud.createTable(name,sharedOf(base),games,Sync.displayName());
-      if(!S.sample&&S.me!=null){ try{ await Cloud.claimSlot(t.id,S.me); }catch(e){} }
       Sync.busy=false; Sync.msg='共有の卓を作りました。招待リンクをメンバーに送ってください';
       await Sync.switchTo(t.id,t.name); Sync.refreshTables();
     }
@@ -842,141 +822,99 @@ async function viewLoop(){
   setTimeout(viewLoop,document.visibilityState==='visible'?15000:60000);
 }
 
-/* ---------- 成績 ---------- */
-let statsData=null, statsErr='', statsLoading=false;
-const statsF={period:'all',table:'all',players:4,fee:true};
-// ある精算（ルール・記録・チップ・場代）の中で、欄 slot の人の成績を計算する
-function sessionEval(st,slot){
+/* ---------- 成績（この卓のメンバー全員） ---------- */
+const statsF={scope:'now',fee:true};
+const SERIES=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300'];  // メンバー1〜6の色（色覚の違いでも見分けやすい並び）
+// ひとつの精算（今の記録、または過去の精算）を全員分まとめて計算する
+function evalSession(st){
   const saved=S;
-  S=Object.assign({rules:defaults(4),names:[],members:4,chips:[],fee:{total:0,mode:'equal'},games:[],seat:[],draft:{},archives:[],trash:[]},clone(st));
-  S.rules=Object.assign(defaults(S.rules.players||4),S.rules);
-  S.members=Math.max(S.members||0,S.rules.players,slot+1); S.fee=S.fee||{total:0,mode:'equal'};
+  S=Object.assign({rules:defaults(4),names:[],members:4,chips:[],fee:{total:0,mode:'equal'},games:[],seat:[],draft:{},archives:[],trash:[]},clone(sharedOf(st)),{games:clone(st.games||[])});
+  S.rules=Object.assign(defaults(S.rules.players||4),S.rules); S.fee=S.fee||{total:0,mode:'equal'};
   try{
-    const games=S.games.map(g=>{ if(!(g.seat&&g.seat[slot]>=0&&g.pts[slot]!=null)) return null; const c=calc(g);
-      return {fp:(g.t||0)+':'+g.pts.join(','),t:g.t||0,rank:c.rank[slot],n:c.order.length,pt:c.score[slot],raw:g.pts[slot],tobi:c.tobi.some(([p])=>p===slot)}; }).filter(Boolean);
-    if(!games.length) return null;
     const t=computeTotals();
-    return {games,pt:t.all[slot],fin:t.fin[slot],fee:t.fee[slot]||0,players:S.rules.players,name:(S.names[slot]||'').trim()};
+    const games=S.games.map(g=>{ const c=calc(g);
+      return idSeat(t.n).map(i=>(g.seat&&g.seat[i]>=0&&g.pts[i]!=null)?{rank:c.rank[i],n:c.order.length,pt:c.score[i],raw:g.pts[i],tobi:c.tobi.some(([p])=>p===i)}:null); });
+    return {n:t.n,games,pt:t.all,fin:t.fin,fee:t.fee};
   }finally{ S=saved; }
 }
-async function gatherSessions(){
-  const out=[], push=(st,slot,table,key,at)=>{ const ev=sessionEval(st,slot); if(!ev) return; out.push(Object.assign(ev,{table,key,at:at||Math.max(...ev.games.map(g=>g.t))})); };
-  const local=RO?null:loadJSON(KEY);
-  if(local&&!local.sample&&local.me!=null){
-    push(local,local.me,'この端末','local');
-    (local.archives||[]).forEach(a=>push(a.snap,local.me,'この端末','local',a.at));
-  }
-  if(Cloud.configured&&!RO) await Sync.start();
-  if(Cloud.configured&&Sync.user){
-    const d=await Cloud.statsData();
-    if(d) d.mem.forEach(m=>{ if(m.slot==null) return; const tb=d.tables.find(x=>x.id===m.table_id); if(!tb) return; const st=tb.state||{};
-      push(Object.assign({},st,{games:d.games.filter(g=>g.table_id===tb.id).map(g=>g.data)}),m.slot,tb.name,tb.id);
-      (st.archives||[]).forEach(a=>push(a.snap,m.slot,tb.name,tb.id,a.at)); });
-  }
-  // 共有の卓に保存したこの端末の記録は二重に数えない
-  const inCloud=new Set(out.filter(s=>s.key!=='local').flatMap(s=>s.games.map(g=>g.fp)));
-  return out.filter(s=>s.key!=='local'||!s.games.every(g=>inCloud.has(g.fp))).sort((a,b)=>a.at-b.at);
+function renderStats(){
+  const box=$('statsBox'), arch=(S.archives||[]).slice().sort((a,b)=>a.at-b.at);
+  if(!arch.length) statsF.scope='now';
+  const sess=(statsF.scope==='all'?arch.map(a=>evalSession(a.snap)):[]).concat(S.games.length?[evalSession(S)]:[]);
+  const seg=(id,opts,cur)=>`<div class="seg" id="${id}">${opts.map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>`;
+  const filters=`<div class="sfilters">${arch.length?seg('sfScope',[['now','今回の精算'],['all',`通算（過去${arch.length}回分も）`]],statsF.scope):''}${seg('sfFee',[['1','場代込み'],['0','場代なし']],statsF.fee?'1':'0')}</div>`;
+  const total=sess.reduce((a,s)=>a+s.games.length,0);
+  if(!total){ box.innerHTML=filters+'<div class="panel empty">まだ記録がありません。対局画面で半荘を記録すると、メンバー全員の成績がここに出ます。</div>'; return; }
+  const n=Math.max(...sess.map(s=>s.n));
+  const mem=idSeat(n).map(i=>{
+    const gs=sess.flatMap(s=>s.games.map(g=>g[i]).filter(Boolean)), k=gs.length;
+    const fin=sess.reduce((a,s)=>a+(s.fin[i]||0)+(statsF.fee?0:(s.fee[i]||0)),0);
+    const cnt=[0,1,2,3].map(r=>gs.filter(g=>g.rank===r).length);
+    return {i,name:nameOf(i),color:SERIES[i],k,fin,pt:fix(sess.reduce((a,s)=>a+(s.pt[i]||0),0)),cnt,
+      top:k?cnt[0]/k:0, ren:k?(cnt[0]+cnt[1])/k:0, avoid:k?gs.filter(g=>g.rank!==g.n-1).length/k:0,
+      avg:k?gs.reduce((a,g)=>a+g.rank+1,0)/k:0, tobi:k?gs.filter(g=>g.tobi).length/k:0, raw:k?Math.round(gs.reduce((a,g)=>a+g.raw,0)/k):0};
+  }).filter(m=>m.k);
+  const order=mem.slice().sort((a,b)=>b.fin-a.fin||b.pt-a.pt);
+  const pc=x=>(Math.round(x*1000)/10)+'%';
+  // 指標ごとに一番いい人を太字に
+  const rows=[
+    ['収支<small>円</small>',m=>m.fin,m=>`<span class="${cls(m.fin)}">${fmtYen(m.fin).replace('円','')}</span>`,1],
+    ['ポイント',m=>m.pt,m=>`<span class="${cls(m.pt)}">${fmtPt(m.pt)}</span>`,1],
+    ['半荘数',null,m=>m.k+'回'],
+    ['平均着順',m=>m.avg,m=>m.avg.toFixed(2),-1],
+    ['トップ率',m=>m.top,m=>pc(m.top),1],
+    ['連対率',m=>m.ren,m=>pc(m.ren),1],
+    ['ラス回避率',m=>m.avoid,m=>pc(m.avoid),1],
+    ['飛び率',m=>m.tobi,m=>pc(m.tobi),-1],
+    ['平均素点',m=>m.raw,m=>fmtPts(m.raw),1]];
+  const table=`<div class="tw"><table class="cmp"><thead><tr><th></th>${order.map(m=>`<th><i class="dotc" style="background:${m.color}"></i>${esc(m.name)}</th>`).join('')}</tr></thead><tbody>${rows.map(([l,f,fmt,dir])=>{
+      const v=f?order.map(m=>f(m)*dir):[], best=v.length>1&&Math.max(...v)!==Math.min(...v)?Math.max(...v):null;  // 全員同じなら強調しない
+      return `<tr><th>${l}</th>${order.map(m=>`<td class="${best!=null&&f(m)*dir===best?'best':''}">${fmt(m)}</td>`).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+  box.innerHTML=filters
+    +`<div class="panel">${table}<p class="hint" style="margin:8px 0 0">太字は各項目でいちばん良い人。収支はチップを含み、${statsF.fee?'場代を差し引いた金額':'場代を引く前の金額'}です。</p></div>`
+    +`<div class="sec"><h2>ポイントの推移<span class="sub">半荘ごとの累計pt</span></h2><div class="panel">${ptTrend(sess,mem)}<div class="hint" id="trendInfo">グラフをタップすると、その半荘の結果が出ます。</div></div></div>`
+    +`<div class="sec"><h2>着順の割合</h2><div class="panel">${rankBars(order)}</div></div>`
+    +(statsF.scope==='all'?`<p class="hint">通算は、過去の精算も欄の番号（1〜${n}）ごとに合計しています。名前は今のメンバー名で表示します。</p>`:'');
 }
-async function renderStats(force){
-  const box=$('statsBox');
-  if(statsData==null||force){
-    if(statsLoading) return; statsLoading=true; box.innerHTML='<div class="panel empty">集計しています…</div>';
-    try{ statsData=await gatherSessions(); statsErr=''; }catch(e){ statsData=[]; statsErr='共有の卓の記録を読み込めませんでした（通信を確認してください）'; }
-    statsLoading=false;
-  }
-  const all=statsData;
-  if(!all.length){
-    box.innerHTML=(statsErr?`<div class="check ng" style="margin:0">${esc(statsErr)}</div>`:'')+`<div class="panel"><div class="row"><b>まだ成績がありません</b>
-      <span class="hint">ルール画面で自分の名前の横にある「自分」を押すと、その卓の記録（過去の精算も含む）が自分の成績として集計されます。</span>
-      ${Cloud.configured&&!Sync.user?'<span class="hint">Googleでログインすると、共有の卓の成績もまとめて見られます（メニューの「共有・ログイン」から）。</span>':''}</div></div>`;
-    return;
-  }
-  const now=new Date(), y0=new Date(now.getFullYear(),0,1).getTime(), m0=new Date(now.getFullYear(),now.getMonth(),1).getTime();
-  const tables=[...new Map(all.map(s=>[s.key,s.table])).entries()];
-  const playersSet=[...new Set(all.map(s=>s.players))].sort((a,b)=>b-a);
-  if(!playersSet.includes(statsF.players)) statsF.players=playersSet[0];
-  if(statsF.table!=='all'&&!tables.some(([k])=>k===statsF.table)) statsF.table='all';
-  const ss=all.filter(s=>s.players===statsF.players&&(statsF.table==='all'||s.key===statsF.table)&&(statsF.period==='all'||s.at>=(statsF.period==='year'?y0:m0)))
-    .map(s=>statsF.fee?s:Object.assign({},s,{fin:s.fin+s.fee}));  // 場代なし＝場代を引く前の収支
-  const filters=`<div class="sfilters">
-    <div class="seg" id="sfPeriod">${[['all','全部'],['year','今年'],['month','今月']].map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${statsF.period===v}">${l}</button>`).join('')}</div>
-    <div class="seg" id="sfFee">${[[1,'場代込み'],[0,'場代なし']].map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${statsF.fee===!!v}">${l}</button>`).join('')}</div>
-    ${playersSet.length>1?`<div class="seg" id="sfPlayers">${playersSet.map(n=>`<button type="button" data-v="${n}" aria-pressed="${statsF.players===n}">${n}人麻雀</button>`).join('')}</div>`:''}
-    ${tables.length>1?`<label class="field sfsel"><select id="sfTable" aria-label="卓で絞り込む"><option value="all">すべての卓</option>${tables.map(([k,n])=>`<option value="${esc(k)}" ${statsF.table===k?'selected':''}>${esc(n)}</option>`).join('')}</select></label>`:''}
-  </div>`;
-  if(!ss.length){ box.innerHTML=filters+'<div class="panel empty">この条件の成績はありません。</div>'; return; }
-  const gs=ss.flatMap(s=>s.games), n=gs.length, P=statsF.players;
-  const cnt=idSeat(P).map(r=>gs.filter(g=>g.rank===r).length);
-  const pct=x=>n?Math.round(x/n*1000)/10:0;
-  const sumFin=ss.reduce((a,s)=>a+s.fin,0), sumPt=fix(ss.reduce((a,s)=>a+s.pt,0));
-  const avgRank=gs.reduce((a,g)=>a+g.rank+1,0)/n, avgRaw=Math.round(gs.reduce((a,g)=>a+g.raw,0)/n);
-  const tile=(l,v,sub,c)=>`<div class="stile"><div class="sl">${l}</div><div class="sv ${c||''}">${v}</div>${sub?`<div class="ss">${sub}</div>`:''}</div>`;
-  const tiles=`<div class="stiles">
-    ${tile('収支',fmtYen(sumFin),`${fmtPt(sumPt)}pt・${ss.length}回`,cls(sumFin))}
-    ${tile('半荘数',n+'回',`平均着順 ${avgRank.toFixed(2)}`)}
-    ${tile('トップ率',pct(cnt[0])+'%',`${cnt[0]}回`)}
-    ${tile('連対率',pct(cnt[0]+cnt[1])+'%',`${P}人中2着以内`)}
-    ${tile('ラス率',pct(cnt[P-1])+'%',`${cnt[P-1]}回`)}
-    ${tile('飛び率',pct(gs.filter(g=>g.tobi).length)+'%',`平均素点 ${fmtPts(avgRaw)}`)}
-  </div>`;
-  box.innerHTML=filters+tiles
-    +`<div class="sec"><h2>収支の推移<span class="sub">累計・円</span></h2><div class="panel">${trendSVG(ss)}<div class="hint" id="trendInfo">点をタップすると、その日の収支が出ます。</div></div></div>`
-    +`<div class="sec"><h2>着順の割合<span class="sub">${n}半荘</span></h2><div class="panel">${rankBar(cnt,n)}</div></div>`
-    +`<div class="sec"><h2>月ごとの収支</h2><div class="panel">${monthBars(ss)}</div></div>`
-    +`<div class="sec"><h2>これまでの記録</h2><div class="panel"><div class="tw"><table><thead><tr><th>日付<small style="display:block;font-weight:500">卓</small></th><th>半荘</th><th>着順</th><th>pt</th><th>収支</th></tr></thead><tbody>${ss.slice().reverse().map(s=>{ const rc=idSeat(P).map(r=>s.games.filter(g=>g.rank===r).length).join('-');
-      return `<tr><td class="nm">${fmtDT(s.at).split(' ')[0]}<small>${esc(s.table)}</small></td><td>${s.games.length}</td><td class="ranks">${rc}</td><td class="${cls(s.pt)}">${fmtPt(s.pt)}</td><td class="yen ${cls(s.fin)}">${fmtYen(s.fin)}</td></tr>`; }).join('')}</tbody></table></div></div></div>`
-    +`<p class="hint">収支はチップを含み、${statsF.fee?'場代を差し引いた金額です':'場代を引く前の金額です'}。今まだ精算中の記録も含めて集計しています。</p>`;
-  window.__trend=ss;
-}
-// 収支の推移：累計の折れ線（1本なので凡例なし、終点にだけ値を表示）
-function trendSVG(ss){
-  const W=320,H=170,L=46,R=12,T=14,B=26;
-  let acc=0; const pts=ss.map(s=>({s,v:(acc+=s.fin)}));
-  const vals=[0,...pts.map(p=>p.v)], lo=Math.min(...vals), hi=Math.max(...vals);
-  const step=niceStep((hi-lo)||1000), y0=Math.floor(lo/step)*step, y1=Math.ceil(hi/step)*step||step;
-  const X=i=>pts.length===1?L+(W-L-R)/2:L+i*(W-L-R)/(pts.length-1), Y=v=>T+(y1-v)*(H-T-B)/((y1-y0)||1);
+// ポイントの推移：メンバーごとの累計ptの折れ線。凡例＋線の終点に名前
+function ptTrend(sess,mem){
+  const W=320,H=200,L=40,R=58,T=12,B=22;
+  const games=sess.flatMap(s=>s.games), X0=games.length;
+  const acc=mem.map(()=>0), series=mem.map(()=>[0]);
+  games.forEach(g=>mem.forEach((m,j)=>{ if(g[m.i]) acc[j]=fix(acc[j]+g[m.i].pt); series[j].push(acc[j]); }));
+  const vals=series.flat(), lo=Math.min(0,...vals), hi=Math.max(0,...vals);
+  const step=niceStep((hi-lo)||40), y0=Math.floor(lo/step)*step, y1=Math.ceil(hi/step)*step||step;
+  const X=k=>L+k*(W-L-R)/Math.max(1,X0), Y=v=>T+(y1-v)*(H-T-B)/((y1-y0)||1);
   const ticks=[]; for(let v=y0;v<=y1+1e-9;v+=step) ticks.push(v);
-  const grid=ticks.map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" class="${v===0?'zero':'grid'}"/><text x="${L-6}" y="${Y(v)+4}" class="ax" text-anchor="end">${shortYen(v)}</text>`).join('');
-  const path=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
-  const last=pts[pts.length-1];
-  const dots=pts.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" class="dot ${p.v<0?'neg':''}"/><circle cx="${X(i)}" cy="${Y(p.v)}" r="14" class="hit" data-ti="${i}"><title>${fmtDT(p.s.at).split(' ')[0]} ${esc(p.s.table)} ${fmtYen(p.s.fin)}（累計 ${fmtYen(p.v)}）</title></circle>`).join('');
-  const xl=`<text x="${X(0)}" y="${H-6}" class="ax" text-anchor="${pts.length===1?'middle':'start'}">${fmtDT(pts[0].s.at).split(' ')[0]}</text>`+(pts.length>1?`<text x="${X(pts.length-1)}" y="${H-6}" class="ax" text-anchor="end">${fmtDT(last.s.at).split(' ')[0]}</text>`:'');
-  const lx=X(pts.length-1), anchor=lx>W-70?'end':'start';
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="累計収支の推移。最新 ${fmtYen(last.v)}">${grid}<path d="${path}" class="line"/>${dots}${xl}<text x="${anchor==='end'?lx-8:lx+8}" y="${Y(last.v)-8}" class="lbl" text-anchor="${anchor}">${fmtYen(last.v)}</text></svg>`;
+  const grid=ticks.map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" class="${v===0?'zero':'grid'}"/><text x="${L-6}" y="${Y(v)+4}" class="ax" text-anchor="end">${v>0?'+':v<0?'−':''}${Math.abs(v)}</text>`).join('');
+  const lines=series.map((sv,j)=>`<path d="${sv.map((v,k)=>`${k?'L':'M'}${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="${mem[j].color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  const ends=series.map((sv,j)=>`<circle cx="${X(X0)}" cy="${Y(sv[X0])}" r="4" fill="${mem[j].color}" stroke="var(--surface)" stroke-width="2"/>`).join('');
+  // 終点ラベル：重ならないよう上下にずらす
+  const lab=series.map((sv,j)=>({j,y:Y(sv[X0])})).sort((a,b)=>a.y-b.y);
+  for(let k=1;k<lab.length;k++) if(lab[k].y-lab[k-1].y<13) lab[k].y=lab[k-1].y+13;
+  const over=lab.length?lab[lab.length-1].y-(H-B+4):0; if(over>0) lab.forEach(l=>l.y-=over);
+  const labels=lab.map(l=>`<text x="${X(X0)+8}" y="${l.y+4}" class="lbl sm">${esc(mem[l.j].name.slice(0,5))}</text>`).join('');
+  const xt=[0,X0].concat(X0>4?[Math.round(X0/2)]:[]).map(k=>`<text x="${X(k)}" y="${H-6}" class="ax" text-anchor="middle">${k}</text>`).join('');
+  const hits=games.map((g,k)=>`<rect x="${X(k+.5)}" y="${T}" width="${Math.max(6,(W-L-R)/X0)}" height="${H-T-B}" class="hit" data-gk="${k}"/>`).join('');
+  window.__ptGames={games,mem};
+  const legend=`<div class="legend">${mem.map(m=>`<span><i class="dotc" style="background:${m.color}"></i>${esc(m.name)}</span>`).join('')}</div>`;
+  return legend+`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="メンバーごとの累計ポイントの推移">${grid}${lines}${ends}${labels}${xt}<text x="${W-R}" y="${H-6}" class="ax" text-anchor="end" dx="40">半荘</text>${hits}</svg>`;
 }
 function niceStep(range){ const raw=range/4, p=Math.pow(10,Math.floor(Math.log10(raw))), f=raw/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
-const shortYen=v=>{ const a=Math.abs(v); const s=a>=10000?(a/10000).toFixed(a%10000?1:0)+'万':a.toLocaleString('ja-JP'); return (v<0?'−':'')+s; };
-// 着順の割合：100%の横棒（区切りは2pxの隙間）＋ラベル
-function rankBar(cnt,n){
-  const cols=['var(--r1)','var(--r2)','var(--r3)','var(--r4)']; const P=cnt.length;
-  const colFor=r=>P===3?[cols[0],cols[1],cols[3]][r]:cols[r];
-  const segs=cnt.map((c,r)=>c?`<div class="rseg" style="flex:${c};background:${colFor(r)}" title="${r+1}着 ${c}回"></div>`:'').join('');
-  const legend=cnt.map((c,r)=>`<div class="rleg"><div class="rl"><i class="rsw" style="background:${colFor(r)}"></i>${r+1}着</div><b>${n?Math.round(c/n*100):0}%</b><small>${c}回</small></div>`).join('');
-  return `<div class="rbar">${segs}</div><div class="rlegs">${legend}</div>`;
-}
-// 月ごとの収支：プラスは上、マイナスは下の棒
-function monthBars(ss){
-  const m=new Map(); ss.forEach(s=>{ const d=new Date(s.at), k=d.getFullYear()*100+d.getMonth(); m.set(k,(m.get(k)||0)+s.fin); });
-  const rows=[...m.entries()].sort((a,b)=>a[0]-b[0]).slice(-12);
-  const W=320,H=150,L=8,R=8,T=18,B=22, max=Math.max(1,...rows.map(r=>Math.abs(r[1])));
-  const hasNeg=rows.some(r=>r[1]<0), hasPos=rows.some(r=>r[1]>0);
-  const zeroY=hasNeg&&hasPos?T+(H-T-B)/2:hasNeg?T:H-B, scale=(hasNeg&&hasPos?(H-T-B)/2:(H-T-B))/max;
-  const bw=Math.min(28,(W-L-R)/rows.length*.6), gap=(W-L-R)/rows.length;
-  const bars=rows.map(([k,v],i)=>{ const x=L+gap*i+(gap-bw)/2, h=Math.max(2,Math.abs(v)*scale), y=v>=0?zeroY-h:zeroY;
-    const lbl=rows.length<=6||i===rows.length-1?`<text x="${x+bw/2}" y="${v>=0?y-4:y+h+11}" class="lbl sm" text-anchor="middle">${shortYen(v)}</text>`:'';
-    return `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="3" class="bar ${v<0?'neg':''}"><title>${Math.floor(k/100)}年${k%100+1}月 ${fmtYen(v)}</title></rect>${lbl}<text x="${x+bw/2}" y="${H-6}" class="ax" text-anchor="middle">${k%100+1}月</text>`; }).join('');
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="月ごとの収支"><line x1="${L}" x2="${W-R}" y1="${zeroY}" y2="${zeroY}" class="zero"/>${bars}</svg>`;
+// 着順の割合：メンバーごとに100%の横棒（区切りは2pxの隙間）
+function rankBars(order){
+  const P=Math.max(...order.map(m=>m.cnt[3]?4:3)), cols=P===3?['var(--r1)','var(--r2)','var(--r4)']:['var(--r1)','var(--r2)','var(--r3)','var(--r4)'];
+  const legend=`<div class="legend">${cols.map((c,r)=>`<span><i class="dotc sq" style="background:${c}"></i>${r+1}着</span>`).join('')}</div>`;
+  return legend+`<div class="rrows">${order.map(m=>`<div class="rrow"><div class="rname"><i class="dotc" style="background:${m.color}"></i>${esc(m.name)}</div><div class="rbar">${cols.map((c,r)=>m.cnt[r]?`<div class="rseg" style="flex:${m.cnt[r]};background:${c};color:${c.includes('r2')||c.includes('r3')?'var(--ink)':'#fff'}" title="${r+1}着 ${m.cnt[r]}回">${m.cnt[r]/m.k>=.15?Math.round(m.cnt[r]/m.k*100)+'%':''}</div>`:'').join('')}</div></div>`).join('')}</div>`;
 }
 $('statsBox').addEventListener('click',e=>{
-  const t=e.target.closest('[data-ti]');
-  if(t){ const ss=window.__trend||[]; let acc=0; const i=Number(t.dataset.ti); ss.slice(0,i+1).forEach(s=>acc+=s.fin); const s=ss[i];
-    $('trendInfo').innerHTML=`<b>${fmtDT(s.at).split(' ')[0]}</b> ${esc(s.table)}：${fmtYen(s.fin)}（${s.games.length}半荘）・累計 <b>${fmtYen(acc)}</b>`; return; }
-  const b=e.target.closest('#sfPeriod button,#sfPlayers button,#sfFee button'); if(!b) return;
-  if(b.closest('#sfPeriod')) statsF.period=b.dataset.v; else if(b.closest('#sfFee')) statsF.fee=b.dataset.v==='1'; else statsF.players=Number(b.dataset.v);
+  const h=e.target.closest('[data-gk]');
+  if(h){ const {games,mem}=window.__ptGames, k=Number(h.dataset.gk), g=games[k];
+    $('trendInfo').innerHTML=`<b>${k+1}半荘目</b>：`+mem.filter(m=>g[m.i]).sort((a,b)=>g[a.i].rank-g[b.i].rank).map(m=>`${esc(m.name)} ${g[m.i].rank+1}着 <span class="${cls(g[m.i].pt)}">${fmtPt(g[m.i].pt)}</span>`).join('・'); return; }
+  const b=e.target.closest('#sfScope button,#sfFee button'); if(!b) return;
+  if(b.closest('#sfScope')) statsF.scope=b.dataset.v; else statsF.fee=b.dataset.v==='1';
   renderStats();
 });
-$('statsBox').addEventListener('change',e=>{ if(e.target.id==='sfTable'){ statsF.table=e.target.value; renderStats(); } });
-$('statsReload').addEventListener('click',()=>renderStats(true));
 
 /* ---------- nav ---------- */
 function show(v){
@@ -989,7 +927,6 @@ function show(v){
   $('menuBtn').classList.toggle('on',v==='stats'||v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
-  if(v==='rules'&&S.cloud&&Sync.user) Sync.reloadMembers().then(renderPlayers).catch(()=>{});
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   save();
 }
@@ -1004,7 +941,7 @@ menu.addEventListener('click',e=>{
   menu.close(); show(b.dataset.go); update(); window.scrollTo(0,0);
 });
 
-function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
+function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('v-stats').hidden) renderStats(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
 if(RO){ document.body.classList.add('ro'); show('total'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
 else {
   const jt=params.get('join'); if(jt&&Cloud.configured){ lsSet(KEY+':join',jt); S.view='share'; }
