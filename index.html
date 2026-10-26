@@ -21,9 +21,13 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>麻雀スコア帳<small id="modeLbl"></small></h1><button type="button" class="menubtn ro-hide" id="menuBtn" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span>メニュー</button></div>
-    <div class="chips" id="ruleChips"></div>
+    <h1>麻雀スコア帳</h1>
+    <div class="hbtns ro-hide">
+      <button type="button" class="hbtn cloud-only" id="shareBtn">ログイン・共有</button>
+      <button type="button" class="hbtn" id="menuBtn" aria-label="メニュー" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span><span class="mtx">メニュー</span></button>
+    </div>
   </header>
+  <div class="meta"><span id="modeLbl"></span><div class="chips" id="ruleChips"></div></div>
   <div id="cloudState" class="cloudbar" hidden></div>
   <div id="sampleBanner" class="banner" hidden>
     <span>表示中のメンバーと記録はサンプルです。</span>
@@ -239,8 +243,7 @@
   <div class="sheet-in">
     <div class="sheet-hd"><h2 id="menuTitle">メニュー</h2><button type="button" class="btn ghost" id="menuClose">閉じる</button></div>
     <div class="menulist">
-      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>メンバー全員のトップ率・連対率・推移グラフ</small></span></button>
-      <button type="button" data-go="share" class="cloud-only"><span class="k">共</span><span><b>共有・ログイン</b><small>Googleでログイン、卓の共有・招待リンク</small></span></button>
+      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>この卓のメンバー全員のトップ率・連対率・グラフ</small></span></button>
       <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
   </div>

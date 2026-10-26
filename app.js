@@ -148,6 +148,7 @@ function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true
 /* ---------- header ---------- */
 function renderHeader(){
   const r=S.rules, u=umaArr();
+  if(Cloud.configured&&!RO) $('shareBtn').textContent=Sync.user?'共有':'ログイン・共有';
   $('modeLbl').textContent=(N()===4?'4人':'3人')+(M()>N()?`（${M()}人回し）`:'')+'・'+S.games.length+'半荘';
   const umaTxt=r.uma==='none'?'なし':(r.uma==='custom'?u.map(x=>x>0?'+'+x:x).join('/'):(UMA_LBL3[r.uma]&&N()===3?UMA_LBL3[r.uma]:UMA_LBL[r.uma]));
   $('ruleChips').innerHTML=[
@@ -823,7 +824,7 @@ async function viewLoop(){
 }
 
 /* ---------- 成績（この卓のメンバー全員） ---------- */
-const statsF={scope:'now',fee:true};
+const statsF={fee:true};
 const SERIES=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300'];  // メンバー1〜6の色（色覚の違いでも見分けやすい並び）
 // ひとつの精算（今の記録、または過去の精算）を全員分まとめて計算する
 function evalSession(st){
@@ -838,11 +839,9 @@ function evalSession(st){
   }finally{ S=saved; }
 }
 function renderStats(){
-  const box=$('statsBox'), arch=(S.archives||[]).slice().sort((a,b)=>a.at-b.at);
-  if(!arch.length) statsF.scope='now';
-  const sess=(statsF.scope==='all'?arch.map(a=>evalSession(a.snap)):[]).concat(S.games.length?[evalSession(S)]:[]);
+  const box=$('statsBox'), sess=S.games.length?[evalSession(S)]:[];
   const seg=(id,opts,cur)=>`<div class="seg" id="${id}">${opts.map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>`;
-  const filters=`<div class="sfilters">${arch.length?seg('sfScope',[['now','今回の精算'],['all',`通算（過去${arch.length}回分も）`]],statsF.scope):''}${seg('sfFee',[['1','場代込み'],['0','場代なし']],statsF.fee?'1':'0')}</div>`;
+  const filters=`<div class="sfilters">${seg('sfFee',[['1','場代込み'],['0','場代なし']],statsF.fee?'1':'0')}</div>`;
   const total=sess.reduce((a,s)=>a+s.games.length,0);
   if(!total){ box.innerHTML=filters+'<div class="panel empty">まだ記録がありません。対局画面で半荘を記録すると、メンバー全員の成績がここに出ます。</div>'; return; }
   const n=Math.max(...sess.map(s=>s.n));
@@ -873,8 +872,7 @@ function renderStats(){
   box.innerHTML=filters
     +`<div class="panel">${table}<p class="hint" style="margin:8px 0 0">太字は各項目でいちばん良い人。収支はチップを含み、${statsF.fee?'場代を差し引いた金額':'場代を引く前の金額'}です。</p></div>`
     +`<div class="sec"><h2>ポイントの推移<span class="sub">半荘ごとの累計pt</span></h2><div class="panel">${ptTrend(sess,mem)}<div class="hint" id="trendInfo">グラフをタップすると、その半荘の結果が出ます。</div></div></div>`
-    +`<div class="sec"><h2>着順の割合</h2><div class="panel">${rankBars(order)}</div></div>`
-    +(statsF.scope==='all'?`<p class="hint">通算は、過去の精算も欄の番号（1〜${n}）ごとに合計しています。名前は今のメンバー名で表示します。</p>`:'');
+    +`<div class="sec"><h2>着順の割合</h2><div class="panel">${rankBars(order)}</div></div>`;
 }
 // ポイントの推移：メンバーごとの累計ptの折れ線。凡例＋線の終点に名前
 function ptTrend(sess,mem){
@@ -911,8 +909,8 @@ $('statsBox').addEventListener('click',e=>{
   const h=e.target.closest('[data-gk]');
   if(h){ const {games,mem}=window.__ptGames, k=Number(h.dataset.gk), g=games[k];
     $('trendInfo').innerHTML=`<b>${k+1}半荘目</b>：`+mem.filter(m=>g[m.i]).sort((a,b)=>g[a.i].rank-g[b.i].rank).map(m=>`${esc(m.name)} ${g[m.i].rank+1}着 <span class="${cls(g[m.i].pt)}">${fmtPt(g[m.i].pt)}</span>`).join('・'); return; }
-  const b=e.target.closest('#sfScope button,#sfFee button'); if(!b) return;
-  if(b.closest('#sfScope')) statsF.scope=b.dataset.v; else statsF.fee=b.dataset.v==='1';
+  const b=e.target.closest('#sfFee button'); if(!b) return;
+  statsF.fee=b.dataset.v==='1';
   renderStats();
 });
 
@@ -924,14 +922,15 @@ function show(v){
   S.view=v;
   ['rules','game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
   $('v-players').hidden=v!=='rules';
-  $('menuBtn').classList.toggle('on',v==='stats'||v==='share');
+  $('menuBtn').classList.toggle('on',v==='stats'); $('shareBtn').classList.toggle('on',v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   save();
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
-// メニュー（成績・共有など、たまに使う画面）
+$('shareBtn').addEventListener('click',()=>{ show('share'); update(); window.scrollTo(0,0); });
+// メニュー（成績など、たまに使う画面）
 const menu=$('menu');
 $('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
 $('menuClose').addEventListener('click',()=>menu.close());
