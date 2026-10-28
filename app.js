@@ -353,6 +353,7 @@ $('saveGame').addEventListener('click',()=>{
   const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
   const game={id,seat:S.seat.slice(),pts,t:Date.now(),...(Object.keys(tobi).length?{tobi}:{})};
   S.games.push(game);
+  if(appliedShot){ const {id:sid,roleMap}=appliedShot; Shots.update(sid,{recorded:Object.fromEntries(Object.entries(roleMap).map(([k,p])=>[k,pts[p]])),game:{seat:game.seat,pts}}).catch(()=>{}); appliedShot=null; }
   freshId=id; S.draft={};
   blur(); update();
   if(S.cloud) Sync.addGame(game);
@@ -546,6 +547,63 @@ $('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
 const roleOffs=()=>N()===4?{self:0,shimocha:1,toimen:2,kamicha:3}:{self:0,shimocha:1,kamicha:2};
 let scan=null;
+/* ---------- 撮影データの保存（読み取り精度の検証用・一時的） ----------
+   写真（長辺2000pxのJPEG）・読み取り結果・反映した値・記録した点数をこの端末のIndexedDBに保存し、ZIPで書き出す */
+const Shots=(()=>{
+  let dbp=null;
+  const db=()=>dbp||(dbp=new Promise((ok,ng)=>{ const r=indexedDB.open('jansou-shots',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('shots',{keyPath:'id',autoIncrement:true});
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error); }));
+  const tx=async(mode,fn)=>{ const d=await db(); return new Promise((ok,ng)=>{ const t=d.transaction('shots',mode), st=t.objectStore('shots'); const r=fn(st); t.oncomplete=()=>ok(r&&r.result); t.onerror=()=>ng(t.error); }); };
+  return {
+    add:rec=>tx('readwrite',st=>st.add(rec)),
+    update:async(id,fields)=>{ if(id==null) return; const d=await db(); return new Promise((ok,ng)=>{ const t=d.transaction('shots','readwrite'), st=t.objectStore('shots'); const g=st.get(id);
+      g.onsuccess=()=>{ if(g.result) st.put(Object.assign(g.result,fields)); }; t.oncomplete=ok; t.onerror=()=>ng(t.error); }); },
+    all:()=>tx('readonly',st=>st.getAll()),
+    count:()=>tx('readonly',st=>st.count()),
+    clear:()=>tx('readwrite',st=>st.clear())
+  };
+})();
+let shotId=null, appliedShot=null;
+async function shrinkPhoto(file){
+  try{ const bmp=await createImageBitmap(file); const sc=Math.min(1,2000/Math.max(bmp.width,bmp.height));
+    const cv=document.createElement('canvas'); cv.width=Math.round(bmp.width*sc); cv.height=Math.round(bmp.height*sc);
+    cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+    return await new Promise(r=>cv.toBlob(r,'image/jpeg',.92))||file; }catch(e){ return file; }
+}
+function logShot(fields){ Shots.update(shotId,fields).catch(()=>{}); }
+// ZIP（無圧縮）を作る
+function makeZip(files){
+  const crcT=new Uint32Array(256).map((_,n)=>{ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; return c>>>0; });
+  const crc=b=>{ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c=crcT[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
+  const enc=new TextEncoder(), parts=[], cen=[]; let off=0;
+  files.forEach(f=>{ const nm=enc.encode(f.name), d=f.data, c=crc(d);
+    const h=new DataView(new ArrayBuffer(30)); h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x800,true); h.setUint32(14,c,true); h.setUint32(18,d.length,true); h.setUint32(22,d.length,true); h.setUint16(26,nm.length,true);
+    parts.push(h.buffer,nm,d);
+    const ch=new DataView(new ArrayBuffer(46)); ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true); ch.setUint16(8,0x800,true); ch.setUint32(16,c,true); ch.setUint32(20,d.length,true); ch.setUint32(24,d.length,true); ch.setUint16(28,nm.length,true); ch.setUint32(42,off,true);
+    cen.push(ch.buffer,nm); off+=30+nm.length+d.length; });
+  const cs=cen.reduce((a,x)=>a+(x.byteLength||x.length),0), e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cs,true); e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,e.buffer],{type:'application/zip'});
+}
+async function renderShotPanel(){ try{ const n=await Shots.count(); $('shotCount').textContent=n?`保存中：${n}枚`:'まだ保存された写真はありません'; $('shotExport').disabled=!n; }catch(e){ $('shotCount').textContent='この端末では保存できません'; $('shotExport').disabled=true; } }
+$('shotExport').addEventListener('click',async()=>{
+  const b=$('shotExport'); b.disabled=true; b.textContent='作成中…';
+  try{
+    const recs=await Shots.all(), pad=n=>String(n).padStart(3,'0'), files=[];
+    for(const r of recs) files.push({name:`shot-${pad(r.id)}.jpg`,data:new Uint8Array(await r.blob.arrayBuffer())});
+    const meta=recs.map(r=>Object.assign({},r,{blob:undefined,file:`shot-${pad(r.id)}.jpg`,time:new Date(r.t).toISOString()}));
+    files.push({name:'data.json',data:new TextEncoder().encode(JSON.stringify({app:'jansou-scorebook',exported:new Date().toISOString(),ua:navigator.userAgent,shots:meta},null,1))});
+    const d=new Date(), name=`jansou-shots-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.zip`;
+    const zip=new File([makeZip(files)],name,{type:'application/zip'});
+    if(navigator.canShare&&navigator.canShare({files:[zip]})){ try{ await navigator.share({files:[zip],title:name}); }catch(e){ if(e.name!=='AbortError') throw e; } }
+    else { const a=document.createElement('a'); a.href=URL.createObjectURL(zip); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); }
+  }catch(e){ $('shotCount').textContent='書き出せませんでした：'+e.message; }
+  b.textContent='書き出す'; b.disabled=false;
+});
+$('shotClear').addEventListener('click',()=>$('shotClearConfirm').hidden=false);
+$('shotClearNo').addEventListener('click',()=>$('shotClearConfirm').hidden=true);
+$('shotClearYes').addEventListener('click',async()=>{ await Shots.clear().catch(()=>{}); $('shotClearConfirm').hidden=true; renderShotPanel(); });
 function playerFor(role){ const n=N(), off=roleOffs()[role], sh=scan.shooter; return S.seat.indexOf((S.seat[sh]+off)%n); }
 async function runScan(src){
   $('scanBusy').hidden=false; $('scanBox').hidden=true;
@@ -574,9 +632,11 @@ async function runScan(src){
         vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
     }
     const st=seated(); scan={res,vals,raw,note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
+    logShot({ocr:{raw,read:Object.fromEntries(ks.map(k=>[k,res.roles[k]?{text:res.roles[k].text,value:res.roles[k].value,digits:res.roles[k].digits.length}:null])),proposed:clone(vals),note,solved:!!sol,size:[img.naturalWidth,img.naturalHeight]}});
     $('scanBox').hidden=false; renderScan(true);
     $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
+    logShot({error:String(e&&e.message||e)});
     $('scanBusy').textContent='写真を読み込めませんでした。別の写真で試してください。'; return;
   }
   $('scanBusy').hidden=true;
@@ -610,15 +670,20 @@ function renderScan(redraw,rows){
   else if(sum===target){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${fmtPts(Math.abs(sum-target))}点${sum>target?'多い':'足りない'}・写真と見比べてください</span>`; }
 }
-$('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const url=URL.createObjectURL(f); runScan(url); e.target.value=''; });
+$('camIn').addEventListener('change',async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value='';
+  shotId=null; appliedShot=null;
+  try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(f),origName:f.name,origSize:f.size,players:N(),start:S.rules.start}); }catch(err){}
+  runScan(URL.createObjectURL(f)); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
 $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur(); renderScan(); });
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }
 bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
   const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
-$('scanCancel').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; });
+$('scanCancel').addEventListener('click',()=>{ logShot({cancelled:true}); scan=null; $('scanBox').hidden=true; });
 $('scanApply').addEventListener('click',()=>{
   Object.keys(roleOffs()).forEach(k=>{ const p=playerFor(k), v=scan.vals[k]; if(v.v===''||v.v==='-') return; S.draft['p'+p]=String(parseInt(v.v,10)); });
+  const roleMap=Object.fromEntries(Object.keys(roleOffs()).map(k=>[k,playerFor(k)]));
+  logShot({applied:Object.fromEntries(Object.keys(roleOffs()).map(k=>[k,scan.vals[k].v])),roleMap,shooter:scan.shooter}); appliedShot={id:shotId,roleMap};
   scan=null; $('scanBox').hidden=true; unsample(); blur(); renderEntry(); save();
   $('entryList').scrollIntoView({behavior:'smooth',block:'start'});
 });
@@ -951,7 +1016,7 @@ $('shareBtn').addEventListener('click',()=>{
   update(); window.scrollTo(0,0); });
 // メニュー（成績など、たまに使う画面）
 const menu=$('menu');
-$('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
+$('menuBtn').addEventListener('click',()=>{ renderShotPanel(); menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
 $('menuClose').addEventListener('click',()=>menu.close());
 menu.addEventListener('click',e=>{
   if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる

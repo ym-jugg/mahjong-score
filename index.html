@@ -246,6 +246,13 @@
       <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>この卓のメンバー全員のトップ率・連対率・グラフ</small></span></button>
       <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
+    <div class="shotpanel ro-hide">
+      <b>撮影データ（読み取り精度の検証用）</b>
+      <span class="hint">点数表示を撮影すると、写真・読み取り結果・記録した点数をこの端末に保存します。書き出したファイルをClaudeに送ると、読み取りの改善に使えます。</span>
+      <span class="hint" id="shotCount">—</span>
+      <div class="actions"><button type="button" class="btn" id="shotExport">書き出す</button><button type="button" class="btn ghost" id="shotClear">すべて削除</button></div>
+      <div class="confirm" id="shotClearConfirm" hidden><span>保存した撮影データをすべて削除します。</span><button type="button" class="btn danger" id="shotClearYes">削除する</button><button type="button" class="btn ghost" id="shotClearNo">やめる</button></div>
+    </div>
   </div>
 </dialog>
 <script src="config.js"></script>
