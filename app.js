@@ -681,7 +681,7 @@ function stackBegin(cv){ const cx=cv.getContext('2d',{willReadFrequently:true});
 const readKey=a=>a.ks.map(k=>a.vals[k].v).join(',');
 async function saveStackShot(cv,mode){ shotId=null; appliedShot=null; try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(cv),mode,players:N(),start:S.rules.start}); }catch(e){} }
 const Live=(()=>{
-  let stream=null, run=0, manual=false;
+  let stream=null, run=0, manual=false, ic=null, camNote='';
   const dlg=$('liveCam'), video=$('liveVideo');
   const nextFrame=()=>new Promise(r=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(()=>r()):requestAnimationFrame(()=>r()));
   const msg=(t,read)=>{ $('liveMsg').textContent=t; if(read!=null) $('liveRead').innerHTML=read; };
@@ -696,12 +696,32 @@ const Live=(()=>{
       msg('カメラを使えませんでした。ブラウザの設定でカメラを許可するか、下のボタンから写真を撮ってください。','');
       $('livePhoto').hidden=false; $('liveShoot').hidden=true; return true; }
     video.srcObject=stream; try{ await video.play(); }catch(e){}
+    await tuneCamera(stream.getVideoTracks()[0]);
     loop(++run); return true;
+  }
+  // 点滅とコマの速さが同期すると、いつも同じ桁が消えた瞬間ばかり写る。
+  // 対策1：露光時間を長く（約1/30秒）して点滅をまたいで写す（対応機種のみ）
+  // 対策2：写真モード（ImageCapture.takePhoto）でも撮って読む。写真はカメラアプリと同じ処理で撮られる
+  async function tuneCamera(track){
+    ic=null; camNote='';
+    if(!track) return;
+    const caps=track.getCapabilities?track.getCapabilities():{};
+    try{ if(caps.exposureMode&&caps.exposureMode.includes('manual')&&caps.exposureTime){
+        const t=Math.max(caps.exposureTime.min||0,Math.min(caps.exposureTime.max||333,333));
+        await track.applyConstraints({advanced:[{exposureMode:'manual',exposureTime:t}]}); camNote+=`露光 ${Math.round(t/10)/1000}秒`; }
+      else camNote+='露光は自動'; }catch(e){ camNote+='露光の変更不可'; }
+    try{ if(window.ImageCapture){ ic=new ImageCapture(track); camNote+='・写真撮影あり'; } else camNote+='・写真撮影なし'; }catch(e){ ic=null; }
+  }
+  async function photoCanvas(){
+    if(!ic) return null;
+    try{ const blob=await ic.takePhoto(); const bmp=await createImageBitmap(blob);
+      const cv=stackCanvas(bmp.width,bmp.height); cv.getContext('2d',{willReadFrequently:true}).drawImage(bmp,0,0,cv.width,cv.height); return cv; }
+    catch(e){ ic=null; camNote+='（写真撮影に失敗したため映像のみ）'; return null; }
   }
   async function loop(id){
     while(video.readyState<2&&id===run) await new Promise(r=>setTimeout(r,50));
     const cv=stackCanvas(video.videoWidth,video.videoHeight); let last='', tries=0;
-    msg('点数表示にカメラを向けてください。4人の合計が合うと自動で読み取ります。');
+    msg('点数表示が画面の横幅いっぱいに入るくらいまで近づけてください。4人の合計が合うと自動で読み取ります。');
     while(id===run){
       const cx=stackBegin(cv), t0=performance.now(); let nf=0;
       while(id===run&&performance.now()-t0<500){ cx.drawImage(video,0,0,cv.width,cv.height); nf++;
@@ -715,8 +735,16 @@ const Live=(()=>{
       $('liveRead').innerHTML=a.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${a.res.roles[k]&&a.res.roles[k].text?esc(a.res.roles[k].text):'—'}</b></span>`).join('');
       // 合計が合う読み方が2回続けて同じなら確定（手ブレ中の読み違いを避ける）
       const key=a.sure?readKey(a):'';
-      if(manual||(key&&key===last)){ accept(a,cv,'live'); return; }
+      if(key&&key===last){ accept(a,cv,'live'); return; }
       last=key;
+      // 映像で読めないとき（または「この映像で読み取る」）は写真モードで撮って読む
+      if(ic&&(manual||(!a.sure&&tries%2===0))){
+        const pc=await photoCanvas(); if(id!==run) return;
+        if(pc){ const b=analyzeScan(pc); if(dbg) drawDbg(b,pc,'写真',0);
+          $('liveRead').innerHTML=b.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${b.res.roles[k]&&b.res.roles[k].text?esc(b.res.roles[k].text):'—'}</b></span>`).join('');
+          if(b.sure||manual){ accept(b.sure||!a.solved?b:a,b.sure||!a.solved?pc:cv,'live-photo'); return; } }
+      }
+      if(manual){ accept(a,cv,'live'); return; }
       if(tries===12) msg('読み取れないときは、表示に近づけるか「この映像で読み取る」を押して手で直してください。');
       await new Promise(r=>setTimeout(r,0));
     }
@@ -729,7 +757,7 @@ const Live=(()=>{
     (a.res.groups||[]).forEach(g=>{ const role=Object.keys(a.res.roles).find(k=>a.res.roles[k]===g);
       c.strokeStyle=role?(role==='self'?'#3DDC97':'#FFD166'):'#7aa2ff'; c.strokeRect(g.x0,g.y0,g.x1-g.x0,g.h||(g.y1-g.y0));
       c.fillStyle=c.strokeStyle; c.fillText((role?ROLE_LBL[role].replace(/（.*）/,'')+' ':'')+(g.text||'?'),g.x0,Math.max(18,g.y0-lw*2)); });
-    $('liveDbgInfo').textContent=`映像 ${video.videoWidth}×${video.videoHeight}・重ねたコマ ${nf}・読み取り ${ms}ms・候補 ${(a.res.groups||[]).length}個・合計${a.solved?'一致':'不一致'}`+(dbgNote?`\n${dbgNote}`:'');
+    $('liveDbgInfo').textContent=`${camNote}\n映像 ${video.videoWidth}×${video.videoHeight}・重ねたコマ ${nf}・読み取り ${ms}ms・候補 ${(a.res.groups||[]).length}個・合計${a.solved?'一致':'不一致'}`+(dbgNote?`\n${dbgNote}`:'');
   }
   async function saveDebug(a,cv){
     try{ const raw=await shrinkPhoto(rawCv), stk=await shrinkPhoto(cv);
