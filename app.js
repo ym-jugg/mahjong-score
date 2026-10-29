@@ -249,7 +249,12 @@ function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.st
 /* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ） */
 // 入力欄は百の位まで（下二桁は「00」固定）。例：250 と打つと 25,000点
 const hund=v=>v==null||v===''||isNaN(Number(v))?'':String(Math.round(Number(v)/100));
-function stepperHTML(key,val,isDef,label,cmp){
+// o.chips: チップ枚数用（1枚ずつ・符号なし・「00」なし）
+function stepperHTML(key,val,isDef,label,cmp,o={}){
+  if(o.chips) return `<div class="stp ${isDef?'def':''}" data-k="${key}" data-scale="1" data-min="0">
+    <button type="button" class="stb" data-d="-1" aria-label="${label}のチップを1枚減らす" ${o.disabled?'disabled':''}>−</button>
+    <div class="stv"><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':val}" placeholder="${val}" aria-label="${label}のチップ枚数" ${o.disabled?'disabled':''}><span class="zz">枚</span></div>
+    <button type="button" class="stb" data-d="1" aria-label="${label}のチップを1枚増やす" ${o.disabled?'disabled':''}>＋</button></div>`;
   return `<div class="stp ${isDef?'def':''} ${cmp?'cmp':''}" data-k="${key}">
     <button type="button" class="stb" data-d="-100" aria-label="${label}を100点減らす">−</button>
     <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':hund(val)}" placeholder="${hund(val)}" aria-label="${label}の持ち点（百点単位）"><span class="z0" aria-hidden="true">00</span><span class="zz">点</span></div>
@@ -259,7 +264,9 @@ let hold=null;
 function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
 ['pointerup','pointercancel','blur'].forEach(ev=>addEventListener(ev,stopHold));
 function bindStepper(box,get,set){
-  const apply=(stp,d)=>{ const k=stp.dataset.k, v=get(k)+d; set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=hund(v); stp.classList.remove('def'); };
+  const sc=stp=>Number(stp.dataset.scale||100);
+  const apply=(stp,d)=>{ const k=stp.dataset.k; let v=get(k)+d; if(stp.dataset.min!=null) v=Math.max(Number(stp.dataset.min),v);
+    set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=sc(stp)===100?hund(v):String(v); stp.classList.remove('def'); };
   // 押した瞬間には動かさない：指を離したタップで1回、指を止めて長押ししたときだけ連続。
   // スクロール（指が動いた）ときは何もしない
   let start=null, held=false;
@@ -282,10 +289,10 @@ function bindStepper(box,get,set){
   });
   box.addEventListener('input',e=>{
     const stp=e.target.closest('.stp'); if(!stp) return;
-    let t=e.target.value.replace(/[−ー－]/g,'-').replace(/[^0-9-]/g,''); t=(t.startsWith('-')?'-':'')+t.replace(/-/g,'');
+    let t=e.target.value.replace(/[−ー－]/g,'-').replace(/[^0-9-]/g,''); t=(t.startsWith('-')&&stp.dataset.min==null?'-':'')+t.replace(/-/g,'');
     e.target.value=t; e.target.dataset.typed='1';
     const empty=t===''||t==='-'; stp.classList.toggle('def',empty);
-    set(stp.dataset.k,empty?t:String(parseInt(t,10)*100));
+    set(stp.dataset.k,empty?t:String(parseInt(t,10)*sc(stp)));
   });
   // タップしたら空欄から打ち始める。何も打たずに離れたら元の値に戻す
   box.addEventListener('focusin',e=>{ const inp=e.target; if(!(inp.tagName==='INPUT'&&inp.closest('.stp'))) return;
@@ -448,8 +455,9 @@ function renderTotal(){
   const chipPt=S.chips.map(c=>chipsFilled?fix((Number(c)-r.chipInit)*r.chipPt):0);
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   if(!$('chipFields').contains(document.activeElement)){
-    $('chipFields').className=n===3?'grid3':'grid4';
-    $('chipFields').innerHTML=names().map((_,i)=>`<div><div class="mini">${esc(nameOf(i))}</div><label class="field"><input id="chip${i}" data-i="${i}" ${RO?'disabled':''} inputmode="numeric" value="${S.chips[i]??''}" aria-label="${esc(nameOf(i))}のチップ枚数"><span class="unit">枚</span></label></div>`).join('');
+    $('chipFields').className='chiprows';
+    $('chipFields').innerHTML=names().map((_,i)=>{ const v=S.chips[i], empty=v===''||v==null;
+      return `<div class="chiprow"><div class="nm">${esc(nameOf(i))}</div>${stepperHTML('chip:'+i,empty?r.chipInit:v,empty,esc(nameOf(i)),false,{chips:true,disabled:RO})}</div>`; }).join('');
   }
   const cs=S.chips.reduce((a,b)=>a+(Number(b)||0),0), ct=r.chipInit*n, el=$('chipCheck');
   if(cs===ct){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${cs}</span>枚</span><span>一致しています</span>`; }
@@ -486,7 +494,8 @@ function renderFee(fee,played,total){
 }
 $('inFee').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,''); S.fee.total=Number(e.target.value)||0; unsample(); renderTotal(); save(); });
 bindSeg($('segFee'),v=>{ S.fee.mode=v; });
-$('chipFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; e.target.value=e.target.value.replace(/[^0-9]/g,''); S.chips[i]=e.target.value===''?'':Number(e.target.value); unsample(); renderTotal(); save(); });
+bindStepper($('chipFields'),k=>{ const v=Number(S.chips[k.split(':')[1]]); return isNaN(v)?S.rules.chipInit:v; },
+  (k,v)=>{ const i=Number(k.split(':')[1]); S.chips[i]=v===''||v==='-'?'':Math.max(0,Number(v)); unsample(); renderTotal(); save(); });
 /* ---------- 保存して新しく始める／過去の精算 ---------- */
 let arcMsg='', arcOpen=null, arcConfirm=null;
 const clone=o=>JSON.parse(JSON.stringify(o));
