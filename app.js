@@ -664,7 +664,8 @@ function analyzeScan(src){
       const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
       vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
   }
-  return {res,vals,raw,note,ks,solved:!!sol,sure:!!sol&&!filled};
+  // 自動で確定してよいのは、全員の数字がそのまま読めて合計も合ったときだけ（補正が入ったら確認画面で人が見る）
+  return {res,vals,raw,note,ks,solved:!!sol,sure:!!sol&&!filled&&!Object.keys(note).length};
 }
 function showScan(a,mode){
   const st=seated(); scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
@@ -686,7 +687,7 @@ async function runScan(src){
 /* ---------- 映像の重ね合わせ読み取り ----------
    点数表示は高速で点滅しているため、1枚の写真では欠けて写ることがある。
    約0.5秒ぶんのコマを「明るい方を残す」合成で重ねると、欠けた線が埋まる。 */
-function stackCanvas(w,h){ const sc=Math.min(1,1600/Math.max(w,h)); const cv=document.createElement('canvas'); cv.width=Math.round(w*sc); cv.height=Math.round(h*sc); return cv; }
+function stackCanvas(w,h){ const sc=Math.min(1,1600/w); const cv=document.createElement('canvas'); cv.width=Math.round(w*sc); cv.height=Math.round(h*sc); return cv; }
 function stackBegin(cv){ const cx=cv.getContext('2d',{willReadFrequently:true}); cx.globalCompositeOperation='source-over'; cx.fillStyle='#000'; cx.fillRect(0,0,cv.width,cv.height); cx.globalCompositeOperation='lighten'; return cx; }
 const readKey=a=>a.ks.map(k=>a.vals[k].v).join(',');
 async function saveStackShot(cv,mode){ shotId=null; appliedShot=null; try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(cv),mode,players:N(),start:S.rules.start}); }catch(e){} }
@@ -748,7 +749,7 @@ const Live=(()=>{
       if(key&&key===last){ accept(a,cv,'live'); return; }
       last=key;
       // 映像で読めないとき（または「この映像で読み取る」）は写真モードで撮って読む
-      if(ic&&(manual||(!a.sure&&tries%2===0))){
+      if(ic&&(manual||!a.sure)){
         const pc=await photoCanvas(); if(id!==run) return;
         if(pc){ const b=analyzeScan(pc); if(dbg) drawDbg(b,pc,'写真',0);
           $('liveRead').innerHTML=b.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${b.res.roles[k]&&b.res.roles[k].text?esc(b.res.roles[k].text):'—'}</b></span>`).join('');

@@ -126,7 +126,7 @@ const SegOCR=(function(){
   function runAll(cv){
     const base=Math.max(1,Math.round(Math.min(cv.width,cv.height)/450));
     const out=[];
-    [['red',0],['bright',base],['bright',Math.round(base*1.5)+1]].forEach(([mode,rad])=>{
+    [['red',0],['redhi',0],['bright',base],['bright',Math.round(base*1.5)+1]].forEach(([mode,rad])=>{
       analyze(cv,mode,rad).forEach(g=>{
         const i=out.findIndex(o=>{ const xo=Math.min(o.x1,g.x1)-Math.max(o.x0,g.x0); return xo>.5*Math.min(o.x1-o.x0,g.x1-g.x0)&&Math.abs(o.cy-g.cy)<.5*Math.max(o.h,g.h); });
         if(i<0) out.push(g); else if(quality(g)>quality(out[i])) out[i]=g;
@@ -172,11 +172,15 @@ const SegOCR=(function(){
     const W=cv.width, H=cv.height;
     const data=cv.getContext('2d').getImageData(0,0,W,H).data;
     let m=mode==='bright'?brightMask(data,W,H):redMask(data,W,H);
+    // にじみ対策：赤い部分のうち、特に赤が強いところだけ残す（重ね合わせた画像で隣の桁とくっつくのを防ぐ）
+    if(mode==='redhi'){ const v=[]; for(let i=0,p=0;i<m.length;i++,p+=4) if(m[i]) v.push(data[p]-(data[p+1]+data[p+2])/2);
+      v.sort((a,b)=>a-b); const T=(v[Math.floor(v.length*.9)]||0)*.6;
+      for(let i=0,p=0;i<m.length;i++,p+=4) if(m[i]&&data[p]-(data[p+1]+data[p+2])/2<T) m[i]=0; }
     if(mode==='bright') m=openMask(m,W,H,rad);
     // 点灯判定に使う明るさ：赤い数字は「赤さ」、白っぽい数字は「赤＋緑の明るさ」
     const red=new Float32Array(W*H);
     for(let i=0,p=0;i<red.length;i++,p+=4) red[i]=mode==='bright'?data[p]+data[p+1]:data[p]-(data[p+1]+data[p+2])/2;
-    const dm=dilate(m,W,H,Math.max(1,Math.round(Math.min(W,H)/400)));
+    const dm=mode==='redhi'?m:dilate(m,W,H,Math.max(1,Math.round(Math.min(W,H)/400)));
     let bs=components(dm,W,H,m).filter(b=>b.area>=6&&bh(b)<H*.5&&bw(b)<W*.3);
     bs=mergePieces(bs);
     const tall=bs.filter(b=>bh(b)>=4&&bh(b)>=bw(b)*1.1);
@@ -187,7 +191,9 @@ const SegOCR=(function(){
     const groups=[];
     for(const d of digits){
       let g=groups.find(g=>{ const l=g.digits[g.digits.length-1]; const h=bh(l);
-        return Math.abs(bcy(l)-bcy(d))<.3*h&&Math.abs(bh(d)-h)<.3*h&&d.x0-l.x1<1.1*h&&d.x0-l.x1>-.2*h; });
+        // 「1」は桁の枠の右側だけが光るので、左端を他の桁の幅ぶん補って間隔を測る
+        const dx0=bw(d)<.4*h?d.x1-.6*h:d.x0;
+        return Math.abs(bcy(l)-bcy(d))<.3*h&&Math.abs(bh(d)-h)<.3*h&&dx0-l.x1<1.1*h&&d.x0-l.x1>-.2*h; });
       if(g) g.digits.push(d); else groups.push({digits:[d]});
     }
     let gs=groups.filter(g=>g.digits.length>=2);
