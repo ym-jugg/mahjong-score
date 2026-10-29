@@ -298,9 +298,6 @@ body{margin:0}
 .qrimg svg{width:100%;height:100%;display:block}
 .linkrow [aria-expanded="true"]{background:var(--felt-soft);border-color:var(--felt);color:var(--felt)}
 
-.shotpanel{display:grid;gap:6px;margin-top:18px;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;font-size:13px}
-.shotpanel .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.shotpanel .btn{width:auto}
 
 /* アプリ内カメラ */
 .live{border:0;padding:0;margin:0;width:100%;height:100%;max-width:none;max-height:none;background:#000;color:#fff}
@@ -333,10 +330,6 @@ body{margin:0}
 @keyframes swr{from{transform:translateX(-24px);opacity:.4}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){ .view.swl,.view.swr{animation:none} }
 
-.live-dbg{display:grid;gap:6px}
-.live-dbg canvas{width:100%;max-height:28vh;object-fit:contain;background:#000;border:1px solid #333;border-radius:6px}
-.live-dbg-row{white-space:pre-line;display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:11px;color:#aab5b0}
-.live-dbg-row .btn{width:auto;padding:6px 10px;font-size:12px;background:transparent;color:#fff;border-color:#55605b;flex:none}
 .live-links{display:flex;justify-content:center;gap:12px}
 button.live-pick{-webkit-appearance:none;appearance:none;background:transparent;border:0;font:inherit;color:#cfe3da}
 a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}

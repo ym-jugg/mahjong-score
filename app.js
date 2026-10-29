@@ -373,7 +373,6 @@ $('saveGame').addEventListener('click',()=>{
   const tobi={}; bustedInDraft().forEach(p=>{ tobi[p]=S.draft.tobi[p]; });
   const game={id,seat:S.seat.slice(),pts,t:Date.now(),...(Object.keys(tobi).length?{tobi}:{})};
   S.games.push(game);
-  if(appliedShot){ const {id:sid,roleMap}=appliedShot; Shots.update(sid,{recorded:Object.fromEntries(Object.entries(roleMap).map(([k,p])=>[k,pts[p]])),game:{seat:game.seat,pts}}).catch(()=>{}); appliedShot=null; }
   freshId=id; S.draft={};
   blur(); update();
   if(S.cloud) Sync.addGame(game);
@@ -573,73 +572,8 @@ $('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
 const roleOffs=()=>N()===4?{self:0,shimocha:1,toimen:2,kamicha:3}:{self:0,shimocha:1,kamicha:2};
 let scan=null;
-/* ---------- 撮影データの保存（読み取り精度の検証用・一時的） ----------
-   写真（長辺2000pxのJPEG）・読み取り結果・反映した値・記録した点数をこの端末のIndexedDBに保存し、ZIPで書き出す */
-const Shots=(()=>{
-  let dbp=null;
-  const db=()=>dbp||(dbp=new Promise((ok,ng)=>{ const r=indexedDB.open('jansou-shots',1);
-    r.onupgradeneeded=()=>r.result.createObjectStore('shots',{keyPath:'id',autoIncrement:true});
-    r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error); }));
-  const tx=async(mode,fn)=>{ const d=await db(); return new Promise((ok,ng)=>{ const t=d.transaction('shots',mode), st=t.objectStore('shots'); const r=fn(st); t.oncomplete=()=>ok(r&&r.result); t.onerror=()=>ng(t.error); }); };
-  return {
-    add:rec=>tx('readwrite',st=>st.add(rec)),
-    update:async(id,fields)=>{ if(id==null) return; const d=await db(); return new Promise((ok,ng)=>{ const t=d.transaction('shots','readwrite'), st=t.objectStore('shots'); const g=st.get(id);
-      g.onsuccess=()=>{ if(g.result) st.put(Object.assign(g.result,fields)); }; t.oncomplete=ok; t.onerror=()=>ng(t.error); }); },
-    all:()=>tx('readonly',st=>st.getAll()),
-    count:()=>tx('readonly',st=>st.count()),
-    clear:()=>tx('readwrite',st=>st.clear())
-  };
-})();
-let shotId=null, appliedShot=null;
-async function shrinkPhoto(file){
-  try{ const bmp=await createImageBitmap(file); const sc=Math.min(1,2000/Math.max(bmp.width,bmp.height));
-    const cv=document.createElement('canvas'); cv.width=Math.round(bmp.width*sc); cv.height=Math.round(bmp.height*sc);
-    cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
-    return await new Promise(r=>cv.toBlob(r,'image/jpeg',.92))||file; }catch(e){ return file; }
-}
-function logShot(fields){ Shots.update(shotId,fields).catch(()=>{}); }
-// ZIP（無圧縮）を作る
-function makeZip(files){
-  const crcT=new Uint32Array(256).map((_,n)=>{ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; return c>>>0; });
-  const crc=b=>{ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c=crcT[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
-  const enc=new TextEncoder(), parts=[], cen=[]; let off=0;
-  files.forEach(f=>{ const nm=enc.encode(f.name), d=f.data, c=crc(d);
-    const h=new DataView(new ArrayBuffer(30)); h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x800,true); h.setUint32(14,c,true); h.setUint32(18,d.length,true); h.setUint32(22,d.length,true); h.setUint16(26,nm.length,true);
-    parts.push(h.buffer,nm,d);
-    const ch=new DataView(new ArrayBuffer(46)); ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true); ch.setUint16(8,0x800,true); ch.setUint32(16,c,true); ch.setUint32(20,d.length,true); ch.setUint32(24,d.length,true); ch.setUint16(28,nm.length,true); ch.setUint32(42,off,true);
-    cen.push(ch.buffer,nm); off+=30+nm.length+d.length; });
-  const cs=cen.reduce((a,x)=>a+(x.byteLength||x.length),0), e=new DataView(new ArrayBuffer(22));
-  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cs,true); e.setUint32(16,off,true);
-  return new Blob([...parts,...cen,e.buffer],{type:'application/zip'});
-}
-async function renderShotPanel(){ try{ const n=await Shots.count(); $('shotCount').textContent=n?`保存中：${n}枚`:'まだ保存された写真はありません'; $('shotExport').disabled=!n; }catch(e){ $('shotCount').textContent='この端末では保存できません'; $('shotExport').disabled=true; } }
-$('shotExport').addEventListener('click',async()=>{
-  const b=$('shotExport'); b.disabled=true; b.textContent='作成中…';
-  try{
-    const recs=await Shots.all(), pad=n=>String(n).padStart(3,'0'), files=[];
-    for(const r of recs) files.push({name:`shot-${pad(r.id)}.jpg`,data:new Uint8Array(await r.blob.arrayBuffer())});
-    const meta=recs.map(r=>Object.assign({},r,{blob:undefined,file:`shot-${pad(r.id)}.jpg`,time:new Date(r.t).toISOString()}));
-    files.push({name:'data.json',data:new TextEncoder().encode(JSON.stringify({app:'jansou-scorebook',exported:new Date().toISOString(),ua:navigator.userAgent,shots:meta},null,1))});
-    const d=new Date(), name=`jansou-shots-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.zip`;
-    const zip=new File([makeZip(files)],name,{type:'application/zip'});
-    // 作成に時間がかかると「タップ直後」の扱いが切れて共有・保存が拒否されるため、
-    // できあがったら改めてボタンを出し、もう一度タップしてもらう
-    if(shotZipUrl) URL.revokeObjectURL(shotZipUrl);
-    shotZip=zip; shotZipUrl=URL.createObjectURL(zip);
-    const canShare=!!(navigator.canShare&&navigator.canShare({files:[zip]}));
-    $('shotReady').innerHTML=`<span class="hint">準備できました（${recs.length}枚・${Math.round(zip.size/1024)}KB）</span>
-      <div class="actions"><a class="btn" href="${shotZipUrl}" download="${name}">ZIPを保存</a>${canShare?'<button type="button" class="btn ghost" id="shotShare">共有…</button>':''}</div>`;
-    $('shotReady').hidden=false;
-  }catch(e){ $('shotCount').textContent='書き出せませんでした：'+(e.message||e.name||e); }
-  b.textContent='書き出す'; b.disabled=false;
-});
-let shotZip=null, shotZipUrl=null;
-$('shotReady').addEventListener('click',async e=>{ if(!e.target.closest('#shotShare')||!shotZip) return;
-  try{ await navigator.share({files:[shotZip],title:shotZip.name}); }
-  catch(err){ if(err.name!=='AbortError') $('shotCount').textContent='共有できませんでした（'+(err.name||'')+'）。「ZIPを保存」を使ってください'; } });
-$('shotClear').addEventListener('click',()=>$('shotClearConfirm').hidden=false);
-$('shotClearNo').addEventListener('click',()=>$('shotClearConfirm').hidden=true);
-$('shotClearYes').addEventListener('click',async()=>{ await Shots.clear().catch(()=>{}); $('shotClearConfirm').hidden=true; $('shotReady').hidden=true; renderShotPanel(); });
+// 以前の検証用に保存していた撮影データは削除する
+try{ indexedDB.deleteDatabase('jansou-shots'); }catch(e){}
 function playerFor(role){ const n=N(), off=roleOffs()[role], sh=scan.shooter; return S.seat.indexOf((S.seat[sh]+off)%n); }
 // 写真（または重ね合わせた画像）を読み取り、合計が合う候補の値を作る
 function analyzeScan(src){
@@ -669,7 +603,6 @@ function analyzeScan(src){
 }
 function showScan(a,mode){
   const st=seated(); scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
-  logShot({mode,ocr:{raw:a.raw,read:Object.fromEntries(a.ks.map(k=>[k,a.res.roles[k]?{text:a.res.roles[k].text,value:a.res.roles[k].value,digits:a.res.roles[k].digits.length}:null])),proposed:clone(a.vals),note:a.note,solved:a.solved,size:[a.res.canvas.width,a.res.canvas.height]}});
   $('scanBusy').hidden=true; $('scanBox').hidden=false; renderScan(true);
   $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -680,7 +613,6 @@ async function runScan(src){
     await new Promise(r=>setTimeout(r,30));
     showScan(analyzeScan(img),'photo');
   }catch(e){
-    logShot({error:String(e&&e.message||e)});
     $('scanBusy').textContent='写真を読み込めませんでした。別の写真で試してください。';
   }
 }
@@ -690,7 +622,6 @@ async function runScan(src){
 function stackCanvas(w,h){ const sc=Math.min(1,1600/w); const cv=document.createElement('canvas'); cv.width=Math.round(w*sc); cv.height=Math.round(h*sc); return cv; }
 function stackBegin(cv){ const cx=cv.getContext('2d',{willReadFrequently:true}); cx.globalCompositeOperation='source-over'; cx.fillStyle='#000'; cx.fillRect(0,0,cv.width,cv.height); cx.globalCompositeOperation='lighten'; return cx; }
 const readKey=a=>a.ks.map(k=>a.vals[k].v).join(',');
-async function saveStackShot(cv,mode){ shotId=null; appliedShot=null; try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(cv),mode,players:N(),start:S.rules.start}); }catch(e){} }
 const Live=(()=>{
   let stream=null, run=0, manual=false, ic=null, camNote='';
   const dlg=$('liveCam'), video=$('liveVideo');
@@ -762,18 +693,15 @@ const Live=(()=>{
     while(id===run){
       const cx=stackBegin(cv), t0=performance.now(); let nf=0;
       while(id===run&&performance.now()-t0<400){ cx.drawImage(video,0,0,cv.width,cv.height); nf++;
-        if(nf===1&&dbgSave){ rawCv.width=cv.width; rawCv.height=cv.height; rawCv.getContext('2d').drawImage(video,0,0,cv.width,cv.height); }
         await nextFrame(); }
       if(id!==run) return;
       cx.globalCompositeOperation='source-over';
-      const ta=performance.now(), a=analyzeScan(cv); tries++;
-      if(dbg) drawDbg(a,cv,nf,Math.round(performance.now()-ta));
-      if(dbgSave){ dbgSave=false; await saveDebug(a,cv); }
+      const a=analyzeScan(cv); tries++;
       if(consider(a,cv,'live')) return;
       // 写真モードでも時々撮って、同じ多数決に加える（「この映像で読み取る」のときは必ず撮る）
       if(ic&&(manual||tries%3===0)){
         const pc=await photoCanvas(); if(id!==run) return;
-        if(pc){ const b=analyzeScan(pc); if(dbg) drawDbg(b,pc,'写真',0);
+        if(pc){ const b=analyzeScan(pc);
           if(consider(b,pc,'live-photo')) return;
           if(manual){ accept(b.solved||!a.solved?b:a,b.solved||!a.solved?pc:cv,'live-photo'); return; } }
       }
@@ -782,26 +710,7 @@ const Live=(()=>{
       await new Promise(r=>setTimeout(r,0));
     }
   }
-  // デバッグ表示：重ね合わせた画像と、見つけた数字の枠・読み取り結果を出す
-  let dbg=false, dbgSave=false, dbgNote=''; const rawCv=document.createElement('canvas');
-  function drawDbg(a,cv,nf,ms){
-    const d=$('liveDbg'), src=a.res.canvas; d.width=src.width; d.height=src.height;
-    const c=d.getContext('2d'); c.drawImage(src,0,0); const lw=Math.max(2,src.width/250); c.lineWidth=lw; c.font=`700 ${Math.max(16,src.width/30)}px sans-serif`;
-    (a.res.groups||[]).forEach(g=>{ const role=Object.keys(a.res.roles).find(k=>a.res.roles[k]===g);
-      c.strokeStyle=role?(role==='self'?'#3DDC97':'#FFD166'):'#7aa2ff'; c.strokeRect(g.x0,g.y0,g.x1-g.x0,g.h||(g.y1-g.y0));
-      c.fillStyle=c.strokeStyle; c.fillText((role?ROLE_LBL[role].replace(/（.*）/,'')+' ':'')+(g.text||'?'),g.x0,Math.max(18,g.y0-lw*2)); });
-    $('liveDbgInfo').textContent=`${camNote}\n映像 ${video.videoWidth}×${video.videoHeight}・重ねたコマ ${nf}・読み取り ${ms}ms・候補 ${(a.res.groups||[]).length}個・合計${a.solved?'一致':'不一致'}`+(dbgNote?`\n${dbgNote}`:'');
-  }
-  async function saveDebug(a,cv){
-    try{ const raw=await shrinkPhoto(rawCv), stk=await shrinkPhoto(cv);
-      await Shots.add({t:Date.now(),blob:stk,mode:'debug-stack',players:N(),start:S.rules.start,ocr:{raw:a.raw,proposed:clone(a.vals),solved:a.solved,video:[video.videoWidth,video.videoHeight]}});
-      await Shots.add({t:Date.now(),blob:raw,mode:'debug-single',players:N(),start:S.rules.start});
-      dbgNote=`保存しました（${new Date().toLocaleTimeString('ja-JP')}）。メニューの「撮影データ」から書き出せます`; }
-    catch(e){ dbgNote='保存できませんでした：'+e.message; }
-  }
-  $('liveDbgToggle').addEventListener('click',()=>{ dbg=!dbg; $('liveDbgBox').hidden=!dbg; $('liveDbgToggle').textContent=dbg?'詳細を隠す':'詳細を表示'; });
-  $('liveDbgSave').addEventListener('click',()=>{ dbgSave=true; $('liveDbgInfo').textContent='保存しています…'; });
-  async function accept(a,cv,mode){ stop(); dlg.close(); await saveStackShot(cv,mode); showScan(a,mode); }
+  function accept(a,cv,mode){ stop(); dlg.close(); showScan(a,mode); }
   $('liveShoot').addEventListener('click',()=>{ manual=true; msg('読み取っています…'); });
   $('liveClose').addEventListener('click',()=>{ stop(); dlg.close(); });
   dlg.addEventListener('cancel',()=>stop());
@@ -827,7 +736,7 @@ async function scanVideo(file){
       if(q>bestQ){ bestQ=q; best=a; bestCv=document.createElement('canvas'); bestCv.width=cv.width; bestCv.height=cv.height; bestCv.getContext('2d').drawImage(cv,0,0); }
     }
     if(!best) throw new Error('動画を読み取れませんでした');
-    await saveStackShot(bestCv,'video'); showScan(best,'video');
+    showScan(best,'video');
   }catch(e){ $('scanBusy').textContent=(e.message||'動画を読み取れませんでした')+'。別の動画か写真で試してください。'; }
   finally{ URL.revokeObjectURL(v.src); }
 }
@@ -863,8 +772,6 @@ function renderScan(redraw,rows){
 async function pickedFile(f){
   if(!f) return;
   if(/^video\//.test(f.type)||/\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name)){ scanVideo(f); return; }
-  shotId=null; appliedShot=null;
-  try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(f),mode:'photo',origName:f.name,origSize:f.size,players:N(),start:S.rules.start}); }catch(err){}
   runScan(URL.createObjectURL(f));
 }
 $('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
@@ -886,11 +793,9 @@ $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button')
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }
 bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
   const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
-$('scanCancel').addEventListener('click',()=>{ logShot({cancelled:true}); scan=null; $('scanBox').hidden=true; });
+$('scanCancel').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; });
 $('scanApply').addEventListener('click',()=>{
   Object.keys(roleOffs()).forEach(k=>{ const p=playerFor(k), v=scan.vals[k]; if(v.v===''||v.v==='-') return; S.draft['p'+p]=String(parseInt(v.v,10)); });
-  const roleMap=Object.fromEntries(Object.keys(roleOffs()).map(k=>[k,playerFor(k)]));
-  logShot({applied:Object.fromEntries(Object.keys(roleOffs()).map(k=>[k,scan.vals[k].v])),roleMap,shooter:scan.shooter}); appliedShot={id:shotId,roleMap};
   scan=null; $('scanBox').hidden=true; unsample(); blur(); renderEntry(); save();
   $('entryList').scrollIntoView({behavior:'smooth',block:'start'});
 });
@@ -1240,7 +1145,7 @@ $('shareBtn').addEventListener('click',()=>{
   update(); window.scrollTo(0,0); });
 // メニュー（成績など、たまに使う画面）
 const menu=$('menu');
-$('menuBtn').addEventListener('click',()=>{ renderShotPanel(); menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
+$('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
 $('menuClose').addEventListener('click',()=>menu.close());
 menu.addEventListener('click',e=>{
   if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる
