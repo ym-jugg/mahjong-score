@@ -16,15 +16,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=34">
+<link rel="stylesheet" href="style.css?v=35">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <h1>麻雀スコア帳</h1>
     <div class="hbtns ro-hide">
-      <button type="button" class="hbtn cloud-only" id="shareBtn">ログイン・共有</button>
-      <button type="button" class="hbtn" id="menuBtn" aria-label="メニュー" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span><span class="mtx">メニュー</span></button>
+      <button type="button" class="hbtn" id="menuBtn" aria-label="メニュー" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span><span class="mtx" id="menuLbl">メニュー</span></button>
     </div>
   </header>
   <div class="meta"><div class="metarow"><span id="modeLbl"></span><button type="button" class="setbtn ro-hide" id="settingsBtn" aria-haspopup="dialog" aria-controls="settingsDlg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>ルール・メンバー設定</button></div><div class="chips" id="ruleChips"></div></div>
@@ -267,14 +266,16 @@
   <div class="sheet-in">
     <div class="sheet-hd"><h2 id="menuTitle">メニュー</h2><button type="button" class="btn ghost" id="menuClose">閉じる</button></div>
     <div class="menulist">
+      <button type="button" class="cloud-only" id="menuLogin"><span class="k" id="menuLoginK">入</span><span><b id="menuLoginT">ログイン</b><small id="menuLoginS">Googleアカウントでログイン</small></span></button>
+      <button type="button" class="cloud-only" data-go="share"><span class="k">共</span><span><b>共有</b><small>招待リンク・QRコード</small></span></button>
       <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
   </div>
 </dialog>
-<script src="config.js?v=34"></script>
-<script src="cloud.js?v=34"></script>
-<script src="ocr.js?v=34"></script>
-<script src="app.js?v=34"></script>
+<script src="config.js?v=35"></script>
+<script src="cloud.js?v=35"></script>
+<script src="ocr.js?v=35"></script>
+<script src="app.js?v=35"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>

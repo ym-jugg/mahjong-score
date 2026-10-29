@@ -148,7 +148,11 @@ function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true
 /* ---------- header ---------- */
 function renderHeader(){
   const r=S.rules, u=umaArr();
-  if(Cloud.configured&&!RO) $('shareBtn').textContent=Sync.user?'ログアウト・共有':'ログイン・共有';
+  // メニューのボタン名とログインの項目は、ログインしているかどうかで切り替える
+  if(Cloud.configured&&!RO){ const u=Sync.user;
+    $('menuLbl').textContent=u?'ログアウト・メニュー':'ログイン・メニュー';
+    $('menuLoginK').textContent=u?'出':'入'; $('menuLoginT').textContent=u?'ログアウト':'ログイン';
+    $('menuLoginS').textContent=u?`${u.email||''} でログイン中`:'Googleアカウントでログイン'; }
   $('modeLbl').textContent=(N()===4?'4人':'3人')+(M()>N()?`（${M()}人回し）`:'')+'・'+S.games.length+'半荘';
   const umaTxt=r.uma==='none'?'なし':(r.uma==='custom'?u.map(x=>x>0?'+'+x:x).join('/'):(UMA_LBL3[r.uma]&&N()===3?UMA_LBL3[r.uma]:UMA_LBL[r.uma]));
   $('ruleChips').innerHTML=[
@@ -893,6 +897,7 @@ const Sync=(function(){
     document.body.classList.add('cloud-on');
     const need=S.cloud||lsGet(KEY+':join')||params.has('code');
     if(need) await start();
+    else setTimeout(()=>start(),300);  // ログイン状態をメニューに出すため、裏で読み込んでおく
   }
   async function start(){
     if(loaded) return; loaded=true;
@@ -1119,7 +1124,7 @@ function show(v){
   if(RO&&(v==='share'||v==='stats')) v='total';
   S.view=v;
   ['game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
-  $('shareBtn').classList.toggle('on',v==='share');
+  $('menuBtn').classList.toggle('on',v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
@@ -1143,17 +1148,15 @@ document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.targe
   },{passive:true});
   addEventListener('touchcancel',()=>{ t0=null; },{passive:true});
 })();
-// もう一度押すと、開く前の画面（ルール・対局・精算など）に戻る
-let backView='game';
-$('shareBtn').addEventListener('click',()=>{
-  if(S.view==='share') show(backView==='share'?'game':backView); else { backView=S.view; show('share'); }
-  update(); window.scrollTo(0,0); });
-// メニュー（成績など、たまに使う画面）
+// メニュー（ログイン・共有・プライバシーポリシー）
 const menu=$('menu');
 $('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.go===S.view)); menu.showModal(); });
 $('menuClose').addEventListener('click',()=>menu.close());
 menu.addEventListener('click',e=>{
   if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる
+  if(e.target.closest('#menuLogin')){ menu.close();
+    (async()=>{ try{ await Sync.start(); if(Sync.user){ await Cloud.signOut(); Sync.toLocal(); update(); } else await Cloud.signIn(); }
+      catch(err){ Sync.msg=err.message; show('share'); update(); } })(); return; }
   const b=e.target.closest('[data-go]'); if(!b) return;
   menu.close(); show(b.dataset.go); update(); window.scrollTo(0,0);
 });

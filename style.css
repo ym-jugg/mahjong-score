@@ -290,7 +290,7 @@ body{margin:0}
 .menulist small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .menulist .cloud-only{display:none}
 .cloud-on .menulist .cloud-only{display:grid}
-@media (max-width:350px){ .top h1{font-size:17px} .hbtn{padding:7px 8px} .hbtn .mtx{display:none} }
+@media (max-width:350px){ .top h1{font-size:17px} .hbtn{padding:7px 8px} }
 
 .qrbox{display:grid;justify-items:center;gap:6px;margin-top:10px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:12px}
 .qrbox[hidden]{display:none}
