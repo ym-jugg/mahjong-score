@@ -246,7 +246,7 @@ $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==nu
 // 持ち点：未入力の人は配給原点（25000など）のまま。入力した人だけ draft に値が入る
 const touched=i=>{ const d=S.draft['p'+i]; return d!=null&&d!==''&&d!=='-'&&!isNaN(parseInt(d,10)); };
 function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.start; }
-/* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ） */
+/* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ。チップは1枚ずつのまま） */
 // 入力欄は百の位まで（下二桁は「00」固定）。例：250 と打つと 25,000点
 const hund=v=>v==null||v===''||isNaN(Number(v))?'':String(Math.round(Number(v)/100));
 // o.chips: チップ枚数用（1枚ずつ・符号なし・「00」なし）
@@ -263,7 +263,9 @@ function stepperHTML(key,val,isDef,label,cmp,o={}){
 }
 let hold=null;
 function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
-['pointerup','pointercancel','blur'].forEach(ev=>addEventListener(ev,stopHold));
+['pointerup','pointercancel','touchend','touchcancel'].forEach(ev=>addEventListener(ev,stopHold,true));
+addEventListener('blur',stopHold);  // アプリから離れたとき（要素のフォーカス移動では止めない）
+document.addEventListener('visibilitychange',stopHold);
 function bindStepper(box,get,set){
   const sc=stp=>Number(stp.dataset.scale||100);
   const apply=(stp,d)=>{ const k=stp.dataset.k; let v=get(k)+d; if(stp.dataset.min!=null) v=Math.max(Number(stp.dataset.min),v);
@@ -274,13 +276,14 @@ function bindStepper(box,get,set){
   const cancel=()=>{ stopHold(); start=null; };
   box.addEventListener('pointerdown',e=>{
     const b=e.target.closest('.stb'); if(!b) return;
-    cancel(); held=false; start={x:e.clientX,y:e.clientY};
+    e.preventDefault();  // ボタンにフォーカスが移って画面が動き、長押しが止まるのを防ぐ
+    cancel(); held=false; start={x:e.clientX,y:e.clientY,sy:scrollY};
     const stp=b.closest('.stp'), d=Number(b.dataset.d);
-    let n=0; hold={t:setTimeout(function tick(){ held=true; n++; apply(stp,n>12?d*10:d); hold.t=setTimeout(tick,n>12?120:80); },500)};
+    let n=0; hold={t:setTimeout(function tick(){ if(!hold) return; if(!stp.isConnected){ stopHold(); return; } held=true; n++; const fast=n>12&&stp.dataset.scale!=='1'; apply(stp,fast?d*10:d); if(hold) hold.t=setTimeout(tick,fast?120:80); },500),box};
   });
   box.addEventListener('pointermove',e=>{ if(start&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>8) cancel(); });
   box.addEventListener('pointerleave',e=>{ if(e.target.closest&&e.target.closest('.stb')) cancel(); },true);
-  addEventListener('scroll',cancel,{passive:true,capture:true});
+  // 指でスクロールしたときはブラウザが pointercancel を出すので、ここで止まる（画面の自動調整によるスクロールでは止めない）
   box.addEventListener('contextmenu',e=>{ if(e.target.closest('.stb')) e.preventDefault(); });
   box.addEventListener('click',e=>{
     const b=e.target.closest('.stb');
@@ -453,7 +456,8 @@ function renderTotal(){
   if(!S.chips||S.chips.length!==n) S.chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:'');
   const chipPt=idSeat(n).map(i=>fix((chipOf(i)-r.chipInit)*r.chipPt));
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
-  if(!$('chipFields').contains(document.activeElement)){
+  // 入力中・長押し中は欄を作り直さない（表示と値がずれないように）
+  if(!$('chipFields').contains(document.activeElement)&&!(hold&&hold.box===$('chipFields'))&&!chipPressing){
     $('chipFields').className='';
     $('chipFields').innerHTML=names().map((_,i)=>`<div class="entry chipe"><div class="nm">${esc(nameOf(i))}</div>${stepperHTML('chip:'+i,chipOf(i),!chipSet(i),esc(nameOf(i)),true,{chips:true,disabled:RO})}</div>`).join('');
   }
@@ -493,6 +497,9 @@ function renderFee(fee,played,total){
 $('inFee').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,''); S.fee.total=Number(e.target.value)||0; unsample(); renderTotal(); save(); });
 bindSeg($('segFee'),v=>{ S.fee.mode=v; });
 // チップ：空欄は初期枚数のまま。初期枚数より少ない（マイナスも）こともある
+let chipPressing=false;
+$('chipFields').addEventListener('pointerdown',e=>{ if(e.target.closest('.stb')) chipPressing=true; });
+['pointerup','pointercancel','touchend','touchcancel'].forEach(ev=>addEventListener(ev,()=>{ if(chipPressing){ chipPressing=false; setTimeout(renderTotal,0); } },true));
 function chipSet(i){ const v=S.chips&&S.chips[i]; return v!==''&&v!=null&&v!=='-'&&!isNaN(Number(v)); }
 function chipOf(i){ return chipSet(i)?Number(S.chips[i]):S.rules.chipInit; }
 bindStepper($('chipFields'),k=>chipOf(Number(k.split(':')[1])),
