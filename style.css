@@ -349,3 +349,23 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 .fulldlg-body section+section{margin-top:26px}
 
 .docframe{flex:1;width:100%;border:0;background:var(--bg)}
+
+/* 卓の切り替え */
+.top h1{min-width:0;flex:1 1 auto}
+.tsw{display:inline-flex;align-items:center;gap:4px;max-width:100%;border:0;background:transparent;padding:4px 0;font:inherit;color:inherit;cursor:pointer}
+.tsw-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsw-caret{font-size:13px;color:var(--felt);flex:none;font-family:var(--sans)}
+.tsw:disabled{cursor:default}
+.tsw:disabled .tsw-caret{display:none}
+.bsheet{border:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));margin:auto auto 0;width:100%;max-width:720px;max-height:80vh;border-radius:18px 18px 0 0;background:var(--bg);color:var(--ink);box-sizing:border-box}
+.bsheet[open]{animation:sheetUp .18s ease-out}
+.bsheet::backdrop{background:rgba(20,28,24,.45)}
+@keyframes sheetUp{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.tlist{display:grid;gap:8px;overflow-y:auto;max-height:60vh}
+.titem{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--ink);font:inherit}
+.titem b{display:block;font-size:15px}
+.titem small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.titem[aria-current]{border-color:var(--felt);background:var(--felt-soft)}
+.tchk{color:var(--felt);font-weight:800;font-size:18px;flex:none}
+.titem.add{border-style:dashed;background:transparent}
+.titem.add b{color:var(--felt)}

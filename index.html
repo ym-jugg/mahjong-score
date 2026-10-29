@@ -16,12 +16,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>麻雀スコア帳</h1>
+    <h1><button type="button" class="tsw" id="tableSwitch" aria-haspopup="dialog" aria-controls="tableDlg"><span class="tsw-name" id="tableName0">麻雀スコア帳</span><span class="tsw-caret" aria-hidden="true">▾</span></button></h1>
     <div class="hbtns ro-hide">
       <button type="button" class="hbtn" id="menuBtn" aria-label="メニュー" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span><span class="mtx" id="menuLbl">メニュー</span></button>
     </div>
@@ -251,6 +251,11 @@
   <iframe id="privacyFrame" title="プライバシーポリシー" class="docframe"></iframe>
 </dialog>
 
+<dialog id="tableDlg" class="bsheet" aria-labelledby="tableDlgTitle">
+  <div class="sheet-hd"><h2 id="tableDlgTitle">卓を切り替え</h2><button type="button" class="btn ghost" id="tableDlgClose">閉じる</button></div>
+  <div class="tlist" id="tableList"></div>
+</dialog>
+
 <dialog id="shooterDlg" class="pickdlg" aria-labelledby="shooterTitle">
   <div class="sheet-hd"><h2 id="shooterTitle">撮影するのは誰？</h2><button type="button" class="btn ghost" id="shooterClose">やめる</button></div>
   <p class="hint" style="margin:0 0 12px">撮影する人の手元の表示を「自分」として、ほかの3人の席を割り当てます。</p>
@@ -278,10 +283,10 @@
     </div>
   </div>
 </dialog>
-<script src="config.js?v=36"></script>
-<script src="cloud.js?v=36"></script>
-<script src="ocr.js?v=36"></script>
-<script src="app.js?v=36"></script>
+<script src="config.js?v=37"></script>
+<script src="cloud.js?v=37"></script>
+<script src="ocr.js?v=37"></script>
+<script src="app.js?v=37"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>

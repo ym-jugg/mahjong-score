@@ -148,6 +148,9 @@ function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true
 /* ---------- header ---------- */
 function renderHeader(){
   const r=S.rules, u=umaArr();
+  // タイトルは今使っている卓の名前（タップで切り替え）
+  $('tableName0').textContent=RO?(S.viewName||'麻雀スコア帳'):!Cloud.configured?'麻雀スコア帳':S.cloud?(S.cloud.name||'共有の卓'):'この端末';
+  $('tableSwitch').disabled=RO||!Cloud.configured;
   // メニューのボタン名とログインの項目は、ログインしているかどうかで切り替える
   if(Cloud.configured&&!RO){ const u=Sync.user;
     $('menuLbl').textContent=u?'ログアウト・メニュー':'ログイン・メニュー';
@@ -875,7 +878,7 @@ const Sync=(function(){
     lsSet(ACTIVE,id);
     S=loadJSON(tKey(id))||blankTable(id,name); if(!S.cloud) S.cloud={id,name:name||''};
     normalize(); lastShared=null; members=[];
-    show('share'); update();
+    show(S.view&&!['share','rules','players'].includes(S.view)?S.view:'game'); update();
     return open(id).catch(e=>{ msg=e.message; renderShare(); });
   }
   function toLocal(){
@@ -1112,10 +1115,38 @@ $('statsBox').addEventListener('click',e=>{
 });
 
 /* ---------- ログイン・共有、プライバシーポリシー（モーダル） ---------- */
-function openShare(){ Sync.start(); renderShare(); const d=$('shareDlg'); if(!d.open) d.showModal(); }
+function openShare(){ const d=$('shareDlg'); if(!d.open) d.showModal(); Sync.start(); renderShare(); }
 $('shareClose').addEventListener('click',()=>{ blur(); $('shareDlg').close(); });
 $('shareDlg').addEventListener('close',()=>update());
 $('privacyClose').addEventListener('click',()=>$('privacyDlg').close());
+/* ---------- 卓の切り替え（タイトルをタップ） ---------- */
+function renderTableList(){
+  const cur=S.cloud&&S.cloud.id, ts=Sync.tables, fmt=t=>new Date(t).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const row=(attrs,name,sub,on)=>`<button type="button" class="titem" ${attrs} ${on?'aria-current="true"':''}><span><b>${esc(name)}</b><small>${sub}</small></span><span class="tchk" aria-hidden="true">${on?'✓':''}</span></button>`;
+  let h='';
+  if(!Sync.user) h+=`<button type="button" class="titem add" data-tact="login"><span><b>ログインして共有の卓を使う</b><small>Googleアカウントでログイン</small></span></button>`;
+  else if(ts==null) h+='<div class="hint" style="padding:8px 4px">読み込み中…</div>';
+  else h+=ts.map(t=>row(`data-tid="${t.id}" data-tname="${esc(t.name)}"`,t.name,`共有・${fmt(t.updated_at)}更新`,t.id===cur)).join('');
+  h+=row('data-tact="local"','この端末','共有しないで、このスマホの中だけに記録',!cur);
+  if(Sync.user) h+=`<button type="button" class="titem add" data-tact="new"><span><b>＋ 新しい共有の卓を作る</b><small>今のルール・メンバーをもとに作成</small></span></button>`;
+  $('tableList').innerHTML=h;
+}
+$('tableSwitch').addEventListener('click',async()=>{
+  renderTableList(); $('tableDlg').showModal();
+  await Sync.start(); if(Sync.user) await Sync.refreshTables(); if($('tableDlg').open) renderTableList();
+});
+$('tableDlgClose').addEventListener('click',()=>$('tableDlg').close());
+$('tableDlg').addEventListener('click',async e=>{
+  if(e.target===$('tableDlg')){ $('tableDlg').close(); return; }
+  const b=e.target.closest('.titem'); if(!b) return;
+  $('tableDlg').close();
+  if(b.dataset.tid){ if(!(S.cloud&&S.cloud.id===b.dataset.tid)) await Sync.switchTo(b.dataset.tid,b.dataset.tname); }
+  else if(b.dataset.tact==='local'){ if(S.cloud){ Sync.toLocal(); show(S.view&&!['share','rules','players'].includes(S.view)?S.view:'game'); update(); } }
+  else if(b.dataset.tact==='new'){ if(S.cloud){ Sync.toLocal(); } openShare(); setTimeout(()=>{ const f=$('newTableName'); if(f) f.focus(); },100); }
+  else if(b.dataset.tact==='login'){ try{ await Sync.start(); await Cloud.signIn(); }catch(err){ Sync.msg=err.message; openShare(); } }
+  window.scrollTo(0,0);
+});
+
 /* ---------- ルール・メンバー設定（モーダル） ---------- */
 function openSettings(){ renderRules(); renderPlayers(); $('settingsDlg').showModal(); $('settingsDlg').querySelector('.fulldlg-body').scrollTop=0; }
 $('settingsBtn').addEventListener('click',openSettings);
