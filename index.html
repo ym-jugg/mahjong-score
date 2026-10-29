@@ -251,9 +251,13 @@
   <div class="live-ui">
     <p class="live-msg" id="liveMsg"></p>
     <p class="live-read" id="liveRead"></p>
+    <div class="live-dbg" id="liveDbgBox" hidden>
+      <canvas id="liveDbg" aria-label="重ね合わせた画像と読み取り結果"></canvas>
+      <div class="live-dbg-row"><span id="liveDbgInfo"></span><button type="button" class="btn ghost" id="liveDbgSave">この瞬間を保存</button></div>
+    </div>
     <div class="live-btns"><button type="button" class="btn" id="liveShoot">この映像で読み取る</button><button type="button" class="btn ghost" id="liveClose">閉じる</button></div>
     <label class="btn" for="camIn" id="livePhoto" hidden>写真を撮る</label>
-    <label class="live-pick" for="pickIn">写真・動画から読み取る</label>
+    <div class="live-links"><label class="live-pick" for="pickIn">写真・動画から読み取る</label><button type="button" class="live-pick" id="liveDbgToggle">詳細を表示</button></div>
   </div>
 </dialog>
 

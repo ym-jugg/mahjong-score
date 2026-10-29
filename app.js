@@ -703,11 +703,15 @@ const Live=(()=>{
     const cv=stackCanvas(video.videoWidth,video.videoHeight); let last='', tries=0;
     msg('点数表示にカメラを向けてください。4人の合計が合うと自動で読み取ります。');
     while(id===run){
-      const cx=stackBegin(cv), t0=performance.now();
-      while(id===run&&performance.now()-t0<500){ cx.drawImage(video,0,0,cv.width,cv.height); await nextFrame(); }
+      const cx=stackBegin(cv), t0=performance.now(); let nf=0;
+      while(id===run&&performance.now()-t0<500){ cx.drawImage(video,0,0,cv.width,cv.height); nf++;
+        if(nf===1&&dbgSave){ rawCv.width=cv.width; rawCv.height=cv.height; rawCv.getContext('2d').drawImage(video,0,0,cv.width,cv.height); }
+        await nextFrame(); }
       if(id!==run) return;
       cx.globalCompositeOperation='source-over';
-      const a=analyzeScan(cv); tries++;
+      const ta=performance.now(), a=analyzeScan(cv); tries++;
+      if(dbg) drawDbg(a,cv,nf,Math.round(performance.now()-ta));
+      if(dbgSave){ dbgSave=false; await saveDebug(a,cv); }
       $('liveRead').innerHTML=a.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${a.res.roles[k]&&a.res.roles[k].text?esc(a.res.roles[k].text):'—'}</b></span>`).join('');
       // 合計が合う読み方が2回続けて同じなら確定（手ブレ中の読み違いを避ける）
       const key=a.sure?readKey(a):'';
@@ -717,6 +721,25 @@ const Live=(()=>{
       await new Promise(r=>setTimeout(r,0));
     }
   }
+  // デバッグ表示：重ね合わせた画像と、見つけた数字の枠・読み取り結果を出す
+  let dbg=false, dbgSave=false, dbgNote=''; const rawCv=document.createElement('canvas');
+  function drawDbg(a,cv,nf,ms){
+    const d=$('liveDbg'), src=a.res.canvas; d.width=src.width; d.height=src.height;
+    const c=d.getContext('2d'); c.drawImage(src,0,0); const lw=Math.max(2,src.width/250); c.lineWidth=lw; c.font=`700 ${Math.max(16,src.width/30)}px sans-serif`;
+    (a.res.groups||[]).forEach(g=>{ const role=Object.keys(a.res.roles).find(k=>a.res.roles[k]===g);
+      c.strokeStyle=role?(role==='self'?'#3DDC97':'#FFD166'):'#7aa2ff'; c.strokeRect(g.x0,g.y0,g.x1-g.x0,g.h||(g.y1-g.y0));
+      c.fillStyle=c.strokeStyle; c.fillText((role?ROLE_LBL[role].replace(/（.*）/,'')+' ':'')+(g.text||'?'),g.x0,Math.max(18,g.y0-lw*2)); });
+    $('liveDbgInfo').textContent=`映像 ${video.videoWidth}×${video.videoHeight}・重ねたコマ ${nf}・読み取り ${ms}ms・候補 ${(a.res.groups||[]).length}個・合計${a.solved?'一致':'不一致'}`+(dbgNote?`\n${dbgNote}`:'');
+  }
+  async function saveDebug(a,cv){
+    try{ const raw=await shrinkPhoto(rawCv), stk=await shrinkPhoto(cv);
+      await Shots.add({t:Date.now(),blob:stk,mode:'debug-stack',players:N(),start:S.rules.start,ocr:{raw:a.raw,proposed:clone(a.vals),solved:a.solved,video:[video.videoWidth,video.videoHeight]}});
+      await Shots.add({t:Date.now(),blob:raw,mode:'debug-single',players:N(),start:S.rules.start});
+      dbgNote=`保存しました（${new Date().toLocaleTimeString('ja-JP')}）。メニューの「撮影データ」から書き出せます`; }
+    catch(e){ dbgNote='保存できませんでした：'+e.message; }
+  }
+  $('liveDbgToggle').addEventListener('click',()=>{ dbg=!dbg; $('liveDbgBox').hidden=!dbg; $('liveDbgToggle').textContent=dbg?'詳細を隠す':'詳細を表示'; });
+  $('liveDbgSave').addEventListener('click',()=>{ dbgSave=true; $('liveDbgInfo').textContent='保存しています…'; });
   async function accept(a,cv,mode){ stop(); dlg.close(); await saveStackShot(cv,mode); showScan(a,mode); }
   $('liveShoot').addEventListener('click',()=>{ manual=true; msg('読み取っています…'); });
   $('liveClose').addEventListener('click',()=>{ stop(); dlg.close(); });

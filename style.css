@@ -332,3 +332,10 @@ body{margin:0}
 @keyframes swl{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
 @keyframes swr{from{transform:translateX(-24px);opacity:.4}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){ .view.swl,.view.swr{animation:none} }
+
+.live-dbg{display:grid;gap:6px}
+.live-dbg canvas{width:100%;max-height:28vh;object-fit:contain;background:#000;border:1px solid #333;border-radius:6px}
+.live-dbg-row{white-space:pre-line;display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:11px;color:#aab5b0}
+.live-dbg-row .btn{width:auto;padding:6px 10px;font-size:12px;background:transparent;color:#fff;border-color:#55605b;flex:none}
+.live-links{display:flex;justify-content:center;gap:12px}
+button.live-pick{background:none;border:0;font:inherit}
