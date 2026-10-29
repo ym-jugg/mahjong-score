@@ -1132,6 +1132,23 @@ function show(v){
   save();
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; show(b.dataset.view); update(); window.scrollTo(0,0); });
+// 横スワイプで下のタブ（ルール・対局・精算）を切り替え
+(()=>{
+  let t0=null;
+  // 横に動かす操作がある場所（表の横スクロール・入力欄・−＋ボタンなど）ではスワイプにしない
+  const skip=el=>el.closest('.tw,input,textarea,select,.stp,.chart,canvas,dialog,.rbar,.linkrow,.qrbox');
+  addEventListener('touchstart',e=>{ t0=null; if(e.touches.length!==1||document.querySelector('dialog[open]')||skip(e.target)) return;
+    const t=e.touches[0]; t0={x:t.clientX,y:t.clientY,at:Date.now()}; },{passive:true});
+  addEventListener('touchend',e=>{ if(!t0) return; const t=e.changedTouches[0], dx=t.clientX-t0.x, dy=t.clientY-t0.y, dt=Date.now()-t0.at; t0=null;
+    if(dt>700||Math.abs(dx)<70||Math.abs(dy)>Math.abs(dx)*.5) return;
+    const tabs=[...document.querySelectorAll('nav.tabs button')].filter(b=>b.offsetParent!==null).map(b=>b.dataset.view);
+    const i=tabs.indexOf(S.view); if(i<0) return;
+    const j=i+(dx<0?1:-1); if(j<0||j>=tabs.length) return;
+    show(tabs[j]); update(); window.scrollTo(0,0);
+    [$('v-'+tabs[j])].concat(tabs[j]==='rules'?[$('v-players')]:[]).forEach(v=>{ v.classList.remove('swl','swr'); void v.offsetWidth; v.classList.add(dx<0?'swl':'swr'); });
+  },{passive:true});
+  addEventListener('touchcancel',()=>{ t0=null; },{passive:true});
+})();
 // もう一度押すと、開く前の画面（ルール・対局・精算など）に戻る
 let backView='game';
 $('shareBtn').addEventListener('click',()=>{

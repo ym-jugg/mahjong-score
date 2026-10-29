@@ -327,3 +327,8 @@ body{margin:0}
 /* チップ（点数入力と同じ見た目） */
 .entry.chipe{grid-template-areas:"nm stp";grid-template-columns:minmax(0,.85fr) minmax(0,1fr)}
 .stb:disabled,.sgn:disabled{opacity:.4}
+/* 横スワイプでの切り替え */
+.view.swl{animation:swl .2s ease-out} .view.swr{animation:swr .2s ease-out}
+@keyframes swl{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes swr{from{transform:translateX(-24px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){ .view.swl,.view.swr{animation:none} }
