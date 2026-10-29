@@ -100,8 +100,8 @@ button{cursor:pointer}
 .stp.cmp{grid-template-columns:1fr 1fr;grid-template-areas:"v v" "m p";height:auto;gap:4px}
 .stp.cmp .stv{grid-area:v;height:40px}
 .stp.cmp .stb{height:34px;font-size:20px}
-.stp.cmp .stb[data-d="-100"]{grid-area:m}
-.stp.cmp .stb[data-d="100"]{grid-area:p}
+.stp.cmp .stb.m{grid-area:m}
+.stp.cmp .stb.p{grid-area:p}
 .stp.cmp .stv input{font-size:18px;padding-left:2px}
 .stp.cmp .stv .sgn{width:28px}
 .stp.cmp .stv .zz{padding:0 8px 0 2px}
@@ -324,9 +324,6 @@ body{margin:0}
 .shooters button small{font-size:12px;color:var(--muted)}
 .shooters button[aria-current]{border-color:var(--felt);box-shadow:inset 0 0 0 1px var(--felt)}
 
-/* チップ */
-.chiprows{display:grid;gap:10px}
-.chiprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,200px);gap:10px;align-items:center}
-.chiprow .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chiprow .stv input{padding-left:10px}
-.chiprow .stb:disabled{opacity:.4}
+/* チップ（点数入力と同じ見た目） */
+.entry.chipe{grid-template-areas:"nm stp";grid-template-columns:minmax(0,.85fr) minmax(0,1fr)}
+.stb:disabled,.sgn:disabled{opacity:.4}

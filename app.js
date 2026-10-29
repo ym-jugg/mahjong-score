@@ -251,14 +251,15 @@ function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.st
 const hund=v=>v==null||v===''||isNaN(Number(v))?'':String(Math.round(Number(v)/100));
 // o.chips: チップ枚数用（1枚ずつ・符号なし・「00」なし）
 function stepperHTML(key,val,isDef,label,cmp,o={}){
-  if(o.chips) return `<div class="stp ${isDef?'def':''}" data-k="${key}" data-scale="1" data-min="0">
-    <button type="button" class="stb" data-d="-1" aria-label="${label}のチップを1枚減らす" ${o.disabled?'disabled':''}>−</button>
-    <div class="stv"><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':val}" placeholder="${val}" aria-label="${label}のチップ枚数" ${o.disabled?'disabled':''}><span class="zz">枚</span></div>
-    <button type="button" class="stb" data-d="1" aria-label="${label}のチップを1枚増やす" ${o.disabled?'disabled':''}>＋</button></div>`;
+  const dis=o.disabled?'disabled':'';
+  if(o.chips) return `<div class="stp cmp ${isDef?'def':''}" data-k="${key}" data-scale="1">
+    <button type="button" class="stb m" data-d="-1" aria-label="${label}のチップを1枚減らす" ${dis}>−</button>
+    <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のチップのプラスとマイナスを切り替え" ${dis}>±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':val}" placeholder="${val}" aria-label="${label}のチップ枚数" ${dis}><span class="zz">枚</span></div>
+    <button type="button" class="stb p" data-d="1" aria-label="${label}のチップを1枚増やす" ${dis}>＋</button></div>`;
   return `<div class="stp ${isDef?'def':''} ${cmp?'cmp':''}" data-k="${key}">
-    <button type="button" class="stb" data-d="-100" aria-label="${label}を100点減らす">−</button>
+    <button type="button" class="stb m" data-d="-100" aria-label="${label}を100点減らす">−</button>
     <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':hund(val)}" placeholder="${hund(val)}" aria-label="${label}の持ち点（百点単位）"><span class="z0" aria-hidden="true">00</span><span class="zz">点</span></div>
-    <button type="button" class="stb" data-d="100" aria-label="${label}を100点増やす">＋</button></div>`;
+    <button type="button" class="stb p" data-d="100" aria-label="${label}を100点増やす">＋</button></div>`;
 }
 let hold=null;
 function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
@@ -436,9 +437,8 @@ function computeTotals(){
   const n=M(), r=S.rules;
   const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
   S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{ if(i>=n) return; if(s==null){ outs[i]++; return; } tot[i]+=s; if(c.rank[i]!=null) rk[i][c.rank[i]]++; }); });
-  const chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:r.chipInit);
-  const chipsFilled=chips.every(v=>v!==''&&v!=null&&!isNaN(v));
-  const chipPt=chips.map(c=>chipsFilled?fix((Number(c)-r.chipInit)*r.chipPt):0);
+  const chips=idSeat(n).map(chipOf);
+  const chipPt=chips.map(c=>fix((c-r.chipInit)*r.chipPt));
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   const played=idSeat(n).map(i=>S.games.filter(g=>g.seat&&g.seat[i]>=0&&g.pts[i]!=null).length);
   const feeTotal=Math.max(0,Number(S.fee.total)||0);
@@ -450,16 +450,14 @@ function renderTotal(){
   const n=M(), r=S.rules;
   const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
   S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{ if(i>=n) return; if(s==null){ outs[i]++; return; } tot[i]+=s; if(c.rank[i]!=null) rk[i][c.rank[i]]++; }); });
-  if(!S.chips||S.chips.length!==n) S.chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:r.chipInit);
-  const chipsFilled=S.chips.every(v=>v!==''&&v!=null&&!isNaN(v));
-  const chipPt=S.chips.map(c=>chipsFilled?fix((Number(c)-r.chipInit)*r.chipPt):0);
+  if(!S.chips||S.chips.length!==n) S.chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:'');
+  const chipPt=idSeat(n).map(i=>fix((chipOf(i)-r.chipInit)*r.chipPt));
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   if(!$('chipFields').contains(document.activeElement)){
-    $('chipFields').className='chiprows';
-    $('chipFields').innerHTML=names().map((_,i)=>{ const v=S.chips[i], empty=v===''||v==null;
-      return `<div class="chiprow"><div class="nm">${esc(nameOf(i))}</div>${stepperHTML('chip:'+i,empty?r.chipInit:v,empty,esc(nameOf(i)),false,{chips:true,disabled:RO})}</div>`; }).join('');
+    $('chipFields').className='';
+    $('chipFields').innerHTML=names().map((_,i)=>`<div class="entry chipe"><div class="nm">${esc(nameOf(i))}</div>${stepperHTML('chip:'+i,chipOf(i),!chipSet(i),esc(nameOf(i)),true,{chips:true,disabled:RO})}</div>`).join('');
   }
-  const cs=S.chips.reduce((a,b)=>a+(Number(b)||0),0), ct=r.chipInit*n, el=$('chipCheck');
+  const cs=idSeat(n).reduce((a,i)=>a+chipOf(i),0), ct=r.chipInit*n, el=$('chipCheck');
   if(cs===ct){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${cs}</span>枚</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${cs}</span> / ${ct}枚</span><span><span class="num">${Math.abs(cs-ct)}</span>枚${cs>ct?'多い':'足りない'}</span>`; }
   // 場代：全員で均等、または打った半荘数で按分して、金額から差し引く
@@ -494,8 +492,11 @@ function renderFee(fee,played,total){
 }
 $('inFee').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,''); S.fee.total=Number(e.target.value)||0; unsample(); renderTotal(); save(); });
 bindSeg($('segFee'),v=>{ S.fee.mode=v; });
-bindStepper($('chipFields'),k=>{ const v=Number(S.chips[k.split(':')[1]]); return isNaN(v)?S.rules.chipInit:v; },
-  (k,v)=>{ const i=Number(k.split(':')[1]); S.chips[i]=v===''||v==='-'?'':Math.max(0,Number(v)); unsample(); renderTotal(); save(); });
+// チップ：空欄は初期枚数のまま。初期枚数より少ない（マイナスも）こともある
+function chipSet(i){ const v=S.chips&&S.chips[i]; return v!==''&&v!=null&&v!=='-'&&!isNaN(Number(v)); }
+function chipOf(i){ return chipSet(i)?Number(S.chips[i]):S.rules.chipInit; }
+bindStepper($('chipFields'),k=>chipOf(Number(k.split(':')[1])),
+  (k,v)=>{ const i=Number(k.split(':')[1]); S.chips[i]=v===''||v==='-'?'':Number(v); unsample(); renderTotal(); save(); });
 /* ---------- 保存して新しく始める／過去の精算 ---------- */
 let arcMsg='', arcOpen=null, arcConfirm=null;
 const clone=o=>JSON.parse(JSON.stringify(o));
