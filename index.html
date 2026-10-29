@@ -240,6 +240,12 @@
   </div>
 </nav>
 
+<dialog id="shooterDlg" class="pickdlg" aria-labelledby="shooterTitle">
+  <div class="sheet-hd"><h2 id="shooterTitle">撮影するのは誰？</h2><button type="button" class="btn ghost" id="shooterClose">やめる</button></div>
+  <p class="hint" style="margin:0 0 12px">撮影する人の手元の表示を「自分」として、ほかの3人の席を割り当てます。</p>
+  <div class="shooters" id="shooterList"></div>
+</dialog>
+
 <dialog id="liveCam" class="live" aria-label="点数表示の読み取り">
   <video id="liveVideo" playsinline muted autoplay></video>
   <div class="live-ui">

@@ -769,9 +769,17 @@ async function pickedFile(f){
 $('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
 $('pickIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
 // 撮影ボタン：アプリ内カメラ（重ね合わせ・自動読み取り）。使えないときは今まで通り写真を撮る
+// 撮影ボタン：先に「撮影するのは誰？」を選んでからカメラへ（選び忘れ防止）
 $('camBtn').addEventListener('click',()=>{ $('scanBox').hidden=true; $('scanBusy').hidden=true;
+  const st=seated();
+  $('shooterList').innerHTML=st.map(i=>`<button type="button" data-p="${i}" ${i===S.shooter?'aria-current="true"':''}><b>${esc(nameOf(i))}</b><small>${WINDS[S.seat[i]]}家</small></button>`).join('');
+  $('shooterDlg').showModal(); });
+$('shooterList').addEventListener('click',e=>{ const b=e.target.closest('[data-p]'); if(!b) return;
+  S.shooter=Number(b.dataset.p); save(); $('shooterDlg').close();
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ $('camIn').click(); return; }
   Live.open(); });
+$('shooterClose').addEventListener('click',()=>$('shooterDlg').close());
+$('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('shooterDlg').close(); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
 $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur(); renderScan(); });
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }

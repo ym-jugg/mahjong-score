@@ -314,3 +314,12 @@ body{margin:0}
 .live-btns{display:grid;grid-template-columns:1fr auto;gap:8px}
 .live-btns .btn.ghost{background:transparent;color:#fff;border-color:#55605b}
 .live-pick{justify-self:center;font-size:13px;color:#cfe3da;text-decoration:underline;padding:4px 8px;cursor:pointer}
+
+/* 撮影者の選択 */
+.pickdlg{border:0;border-radius:18px;padding:18px 16px;width:min(360px,calc(100% - 32px));background:var(--bg);color:var(--ink)}
+.pickdlg::backdrop{background:rgba(20,28,24,.45)}
+.shooters{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shooters button{display:grid;gap:2px;justify-items:center;padding:14px 8px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit}
+.shooters button b{font-size:17px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shooters button small{font-size:12px;color:var(--muted)}
+.shooters button[aria-current]{border-color:var(--felt);box-shadow:inset 0 0 0 1px var(--felt)}
