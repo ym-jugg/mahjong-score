@@ -605,41 +605,121 @@ $('shotClear').addEventListener('click',()=>$('shotClearConfirm').hidden=false);
 $('shotClearNo').addEventListener('click',()=>$('shotClearConfirm').hidden=true);
 $('shotClearYes').addEventListener('click',async()=>{ await Shots.clear().catch(()=>{}); $('shotClearConfirm').hidden=true; renderShotPanel(); });
 function playerFor(role){ const n=N(), off=roleOffs()[role], sh=scan.shooter; return S.seat.indexOf((S.seat[sh]+off)%n); }
+// 写真（または重ね合わせた画像）を読み取り、合計が合う候補の値を作る
+function analyzeScan(src){
+  const res=SegOCR.read(src);
+  const vals={}, raw={}, note={}, ks=Object.keys(roleOffs()), target=S.rules.start*N();
+  ks.forEach(k=>{ const g=res.roles[k]; raw[k]=g?g.text:''; });
+  // 合計（配給原点×人数）が合う組み合わせを探す。百点単位・十点単位の両方を試す
+  const sol=SegOCR.solve(res.roles,ks,target);
+  let filled=false;
+  if(sol){
+    ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
+      vals[k]={v:String(v*100)};
+      if(sol[k].filled){ note[k]='読めなかったため合計から計算'; filled=true; }
+      else if(!g||g.value==null||(Math.abs(g.value)!==Math.abs(v)&&Math.abs(g.value)!==Math.abs(v)*10)) note[k]='合計に合うように補正';
+    });
+  } else {
+    // 合計で確かめられないときは、ありえる値（3桁以上・百点単位で整数・合計の1.5倍以内）だけ入れ、他は空欄にする
+    const got=ks.map(k=>res.roles[k]&&res.roles[k].value).filter(v=>v!=null);
+    const div=got.some(v=>Math.abs(v)>=1000)?10:1;
+    ks.forEach(k=>{ const g=res.roles[k];
+      const v=g&&g.value!=null&&g.digits.length>=(div===10?4:3)?g.value/div:null;
+      const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
+      vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
+  }
+  return {res,vals,raw,note,ks,solved:!!sol,sure:!!sol&&!filled};
+}
+function showScan(a,mode){
+  const st=seated(); scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
+  logShot({mode,ocr:{raw:a.raw,read:Object.fromEntries(a.ks.map(k=>[k,a.res.roles[k]?{text:a.res.roles[k].text,value:a.res.roles[k].value,digits:a.res.roles[k].digits.length}:null])),proposed:clone(a.vals),note:a.note,solved:a.solved,size:[a.res.canvas.width,a.res.canvas.height]}});
+  $('scanBusy').hidden=true; $('scanBox').hidden=false; renderScan(true);
+  $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
+}
 async function runScan(src){
-  $('scanBusy').hidden=false; $('scanBox').hidden=true;
+  $('scanBusy').textContent='読み取り中…'; $('scanBusy').hidden=false; $('scanBox').hidden=true;
   try{
     const img=new Image(); img.src=src; await img.decode();
     await new Promise(r=>setTimeout(r,30));
-    const res=SegOCR.read(img);
-    const vals={}, raw={}, note={}, ks=Object.keys(roleOffs()), target=S.rules.start*N();
-    ks.forEach(k=>{ const g=res.roles[k]; raw[k]=g?g.text:''; });
-    // 合計（配給原点×人数）が合う組み合わせを探す。百点単位・十点単位の両方を試す
-    const sol=SegOCR.solve(res.roles,ks,target);
-    if(sol){
-      ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
-        vals[k]={v:String(v*100)};
-        const readTxt=g&&g.value!=null?String(Math.abs(g.value)):'';
-        if(sol[k].filled) note[k]='読めなかったため合計から計算';
-        else if(!g||g.value==null||(Math.abs(g.value)!==Math.abs(v)&&Math.abs(g.value)!==Math.abs(v)*10)) note[k]='合計に合うように補正';
-      });
-    } else {
-      // 合計で確かめられないときは、ありえる値（3桁以上・百点単位で整数・合計の1.5倍以内）だけ入れ、他は空欄にする
-      const got=ks.map(k=>res.roles[k]&&res.roles[k].value).filter(v=>v!=null);
-      const div=got.some(v=>Math.abs(v)>=1000)?10:1;
-      ks.forEach(k=>{ const g=res.roles[k];
-        const v=g&&g.value!=null&&g.digits.length>=(div===10?4:3)?g.value/div:null;
-        const ok=v!=null&&Number.isInteger(v)&&Math.abs(v*100)<=target*1.5;
-        vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
-    }
-    const st=seated(); scan={res,vals,raw,note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
-    logShot({ocr:{raw,read:Object.fromEntries(ks.map(k=>[k,res.roles[k]?{text:res.roles[k].text,value:res.roles[k].value,digits:res.roles[k].digits.length}:null])),proposed:clone(vals),note,solved:!!sol,size:[img.naturalWidth,img.naturalHeight]}});
-    $('scanBox').hidden=false; renderScan(true);
-    $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
+    showScan(analyzeScan(img),'photo');
   }catch(e){
     logShot({error:String(e&&e.message||e)});
-    $('scanBusy').textContent='写真を読み込めませんでした。別の写真で試してください。'; return;
+    $('scanBusy').textContent='写真を読み込めませんでした。別の写真で試してください。';
   }
-  $('scanBusy').hidden=true;
+}
+/* ---------- 映像の重ね合わせ読み取り ----------
+   点数表示は高速で点滅しているため、1枚の写真では欠けて写ることがある。
+   約0.5秒ぶんのコマを「明るい方を残す」合成で重ねると、欠けた線が埋まる。 */
+function stackCanvas(w,h){ const sc=Math.min(1,1600/Math.max(w,h)); const cv=document.createElement('canvas'); cv.width=Math.round(w*sc); cv.height=Math.round(h*sc); return cv; }
+function stackBegin(cv){ const cx=cv.getContext('2d',{willReadFrequently:true}); cx.globalCompositeOperation='source-over'; cx.fillStyle='#000'; cx.fillRect(0,0,cv.width,cv.height); cx.globalCompositeOperation='lighten'; return cx; }
+const readKey=a=>a.ks.map(k=>a.vals[k].v).join(',');
+async function saveStackShot(cv,mode){ shotId=null; appliedShot=null; try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(cv),mode,players:N(),start:S.rules.start}); }catch(e){} }
+const Live=(()=>{
+  let stream=null, run=0, manual=false;
+  const dlg=$('liveCam'), video=$('liveVideo');
+  const nextFrame=()=>new Promise(r=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(()=>r()):requestAnimationFrame(()=>r()));
+  const msg=(t,read)=>{ $('liveMsg').textContent=t; if(read!=null) $('liveRead').innerHTML=read; };
+  function stop(){ run++; if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; video.srcObject=null; }
+  async function open(){
+    if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)) return false;
+    manual=false; msg('カメラを起動しています…',''); $('livePhoto').hidden=true; $('liveShoot').hidden=false;
+    dlg.showModal();
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}}); }
+    catch(e){
+      // 許可されなかったときなど：その場で写真撮影に切り替えられるようにする（タップ操作から開く必要があるため自動では開かない）
+      msg('カメラを使えませんでした。ブラウザの設定でカメラを許可するか、下のボタンから写真を撮ってください。','');
+      $('livePhoto').hidden=false; $('liveShoot').hidden=true; return true; }
+    video.srcObject=stream; try{ await video.play(); }catch(e){}
+    loop(++run); return true;
+  }
+  async function loop(id){
+    while(video.readyState<2&&id===run) await new Promise(r=>setTimeout(r,50));
+    const cv=stackCanvas(video.videoWidth,video.videoHeight); let last='', tries=0;
+    msg('点数表示にカメラを向けてください。4人の合計が合うと自動で読み取ります。');
+    while(id===run){
+      const cx=stackBegin(cv), t0=performance.now();
+      while(id===run&&performance.now()-t0<500){ cx.drawImage(video,0,0,cv.width,cv.height); await nextFrame(); }
+      if(id!==run) return;
+      cx.globalCompositeOperation='source-over';
+      const a=analyzeScan(cv); tries++;
+      $('liveRead').innerHTML=a.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${a.res.roles[k]&&a.res.roles[k].text?esc(a.res.roles[k].text):'—'}</b></span>`).join('');
+      // 合計が合う読み方が2回続けて同じなら確定（手ブレ中の読み違いを避ける）
+      const key=a.sure?readKey(a):'';
+      if(manual||(key&&key===last)){ accept(a,cv,'live'); return; }
+      last=key;
+      if(tries===12) msg('読み取れないときは、表示に近づけるか「この映像で読み取る」を押して手で直してください。');
+      await new Promise(r=>setTimeout(r,0));
+    }
+  }
+  async function accept(a,cv,mode){ stop(); dlg.close(); await saveStackShot(cv,mode); showScan(a,mode); }
+  $('liveShoot').addEventListener('click',()=>{ manual=true; msg('読み取っています…'); });
+  $('liveClose').addEventListener('click',()=>{ stop(); dlg.close(); });
+  dlg.addEventListener('cancel',()=>stop());
+  return {open,stop};
+})();
+// 動画から：0.5秒ずつ重ねて読み、合計が合った区間を使う（だめなら一番よく読めた区間）
+async function scanVideo(file){
+  $('scanBusy').textContent='動画を読み取り中…'; $('scanBusy').hidden=false; $('scanBox').hidden=true;
+  const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.src=URL.createObjectURL(file);
+  try{
+    await new Promise((ok,ng)=>{ v.onloadeddata=ok; v.onerror=()=>ng(new Error('動画を開けませんでした')); setTimeout(()=>ng(new Error('動画を開けませんでした')),15000); try{ const p=v.play(); p&&p.then(()=>v.pause(),()=>{}); }catch(e){} });
+    const dur=Math.min(isFinite(v.duration)?v.duration:5,10), cv=stackCanvas(v.videoWidth,v.videoHeight);
+    const seek=t=>new Promise(r=>{ v.onseeked=()=>r(); v.currentTime=t; setTimeout(r,800); });
+    let best=null, bestQ=-1, bestCv=null;
+    for(let s=0;s<dur;s+=.5){
+      const cx=stackBegin(cv);
+      for(let t=s;t<Math.min(s+.5,dur);t+=1/24){ await seek(t); cx.drawImage(v,0,0,cv.width,cv.height); }
+      cx.globalCompositeOperation='source-over';
+      const a=analyzeScan(cv);
+      $('scanBusy').textContent=`動画を読み取り中…（${Math.min(100,Math.round((s+.5)/dur*100))}%）`;
+      if(a.sure){ best=a; bestCv=cv; break; }
+      const q=a.ks.filter(k=>!a.vals[k].miss).length+(a.solved?1:0);
+      if(q>bestQ){ bestQ=q; best=a; bestCv=document.createElement('canvas'); bestCv.width=cv.width; bestCv.height=cv.height; bestCv.getContext('2d').drawImage(cv,0,0); }
+    }
+    if(!best) throw new Error('動画を読み取れませんでした');
+    await saveStackShot(bestCv,'video'); showScan(best,'video');
+  }catch(e){ $('scanBusy').textContent=(e.message||'動画を読み取れませんでした')+'。別の動画か写真で試してください。'; }
+  finally{ URL.revokeObjectURL(v.src); }
 }
 function drawScan(){
   const {canvas:src,roles}=scan.res, cv=$('scanCv');
@@ -670,10 +750,19 @@ function renderScan(redraw,rows){
   else if(sum===target){ el.className='check ok'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>一致しています</span>`; }
   else { el.className='check ng'; el.innerHTML=`<span>合計 <span class="num">${fmtPts(sum)}</span>点</span><span>${fmtPts(Math.abs(sum-target))}点${sum>target?'多い':'足りない'}・写真と見比べてください</span>`; }
 }
-$('camIn').addEventListener('change',async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value='';
+async function pickedFile(f){
+  if(!f) return;
+  if(/^video\//.test(f.type)||/\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name)){ scanVideo(f); return; }
   shotId=null; appliedShot=null;
-  try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(f),origName:f.name,origSize:f.size,players:N(),start:S.rules.start}); }catch(err){}
-  runScan(URL.createObjectURL(f)); });
+  try{ shotId=await Shots.add({t:Date.now(),blob:await shrinkPhoto(f),mode:'photo',origName:f.name,origSize:f.size,players:N(),start:S.rules.start}); }catch(err){}
+  runScan(URL.createObjectURL(f));
+}
+$('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
+$('pickIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
+// 撮影ボタン：アプリ内カメラ（重ね合わせ・自動読み取り）。使えないときは今まで通り写真を撮る
+$('camBtn').addEventListener('click',()=>{ $('scanBox').hidden=true; $('scanBusy').hidden=true;
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ $('camIn').click(); return; }
+  Live.open(); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
 $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur(); renderScan(); });
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }

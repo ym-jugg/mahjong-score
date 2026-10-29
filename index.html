@@ -139,10 +139,11 @@
         <div class="row"><span class="hint">各メンバーの今回の席（東＝起家）をタップしてから、持ち点を点数のまま（例：25000）入れてください。席は次の半荘に引き継がれます。回し打ちのときは「抜」で抜け番を選べます。</span></div>
         <div class="row">
           <div class="camrow">
-            <label class="btn cam" for="camIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>卓の点数表示を撮影</label>
+            <button type="button" class="btn cam" id="camBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>卓の点数表示を撮影</button>
           </div>
           <input type="file" id="camIn" accept="image/*" capture="environment" hidden>
-          <span class="hint">撮影者の手元の表示（中央＝自分、右＝下家、上＝対面、左＝上家）を正面から撮ってください。</span>
+          <input type="file" id="pickIn" accept="image/*,video/*" hidden>
+          <span class="hint">撮影者の手元の表示（中央＝自分、右＝下家、上＝対面、左＝上家）にカメラを向けてください。読み取れると自動で止まります。</span>
           <div id="scanBox" class="scan" hidden>
             <div><div class="lbl">撮影したのは誰？</div><div class="seg" id="segShooter" style="margin-top:6px"></div></div>
             <canvas id="scanCv" aria-label="読み取った写真"></canvas>
@@ -238,6 +239,17 @@
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
   </div>
 </nav>
+
+<dialog id="liveCam" class="live" aria-label="点数表示の読み取り">
+  <video id="liveVideo" playsinline muted autoplay></video>
+  <div class="live-ui">
+    <p class="live-msg" id="liveMsg"></p>
+    <p class="live-read" id="liveRead"></p>
+    <div class="live-btns"><button type="button" class="btn" id="liveShoot">この映像で読み取る</button><button type="button" class="btn ghost" id="liveClose">閉じる</button></div>
+    <label class="btn" for="camIn" id="livePhoto" hidden>写真を撮る</label>
+    <label class="live-pick" for="pickIn">写真・動画から読み取る</label>
+  </div>
+</dialog>
 
 <dialog id="menu" class="sheet" aria-labelledby="menuTitle">
   <div class="sheet-in">
