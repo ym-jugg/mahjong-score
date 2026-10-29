@@ -622,14 +622,24 @@ $('shotExport').addEventListener('click',async()=>{
     files.push({name:'data.json',data:new TextEncoder().encode(JSON.stringify({app:'jansou-scorebook',exported:new Date().toISOString(),ua:navigator.userAgent,shots:meta},null,1))});
     const d=new Date(), name=`jansou-shots-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.zip`;
     const zip=new File([makeZip(files)],name,{type:'application/zip'});
-    if(navigator.canShare&&navigator.canShare({files:[zip]})){ try{ await navigator.share({files:[zip],title:name}); }catch(e){ if(e.name!=='AbortError') throw e; } }
-    else { const a=document.createElement('a'); a.href=URL.createObjectURL(zip); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); }
-  }catch(e){ $('shotCount').textContent='書き出せませんでした：'+e.message; }
+    // 作成に時間がかかると「タップ直後」の扱いが切れて共有・保存が拒否されるため、
+    // できあがったら改めてボタンを出し、もう一度タップしてもらう
+    if(shotZipUrl) URL.revokeObjectURL(shotZipUrl);
+    shotZip=zip; shotZipUrl=URL.createObjectURL(zip);
+    const canShare=!!(navigator.canShare&&navigator.canShare({files:[zip]}));
+    $('shotReady').innerHTML=`<span class="hint">準備できました（${recs.length}枚・${Math.round(zip.size/1024)}KB）</span>
+      <div class="actions"><a class="btn" href="${shotZipUrl}" download="${name}">ZIPを保存</a>${canShare?'<button type="button" class="btn ghost" id="shotShare">共有…</button>':''}</div>`;
+    $('shotReady').hidden=false;
+  }catch(e){ $('shotCount').textContent='書き出せませんでした：'+(e.message||e.name||e); }
   b.textContent='書き出す'; b.disabled=false;
 });
+let shotZip=null, shotZipUrl=null;
+$('shotReady').addEventListener('click',async e=>{ if(!e.target.closest('#shotShare')||!shotZip) return;
+  try{ await navigator.share({files:[shotZip],title:shotZip.name}); }
+  catch(err){ if(err.name!=='AbortError') $('shotCount').textContent='共有できませんでした（'+(err.name||'')+'）。「ZIPを保存」を使ってください'; } });
 $('shotClear').addEventListener('click',()=>$('shotClearConfirm').hidden=false);
 $('shotClearNo').addEventListener('click',()=>$('shotClearConfirm').hidden=true);
-$('shotClearYes').addEventListener('click',async()=>{ await Shots.clear().catch(()=>{}); $('shotClearConfirm').hidden=true; renderShotPanel(); });
+$('shotClearYes').addEventListener('click',async()=>{ await Shots.clear().catch(()=>{}); $('shotClearConfirm').hidden=true; $('shotReady').hidden=true; renderShotPanel(); });
 function playerFor(role){ const n=N(), off=roleOffs()[role], sh=scan.shooter; return S.seat.indexOf((S.seat[sh]+off)%n); }
 // 写真（または重ね合わせた画像）を読み取り、合計が合う候補の値を作る
 function analyzeScan(src){
