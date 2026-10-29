@@ -194,7 +194,6 @@ table.cmp .pos{color:var(--felt)} table.cmp .neg{color:var(--shu)}
 .stp.cmp .stv .z0{font-size:18px}
 .stv input::placeholder{color:var(--muted);opacity:1;font-weight:500}
 .stp:not(.def) .stv input::placeholder{opacity:.5}
-.stp.def .stv .z0{color:var(--muted);opacity:.5;font-weight:500}
 .stp.def .stv input{color:var(--muted);opacity:.5;font-weight:500}
 input::placeholder{color:var(--muted);opacity:.45}
 /* scan */
