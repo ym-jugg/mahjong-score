@@ -729,13 +729,39 @@ const Live=(()=>{
       const cv=stackCanvas(bmp.width,bmp.height); cv.getContext('2d',{willReadFrequently:true}).drawImage(bmp,0,0,cv.width,cv.height); return cv; }
     catch(e){ ic=null; camNote+='（写真撮影に失敗したため映像のみ）'; return null; }
   }
+  // 読み取りは0.4秒ごと。人ごとに「はっきり読めた数字」を直近の結果から集めて多数決し、
+  // 4人そろって合計が合えばすぐ確定（1回の画像で全員読めなくても、何回かに分けて読めればよい）
+  function exactReads(a){ const o={}; a.ks.forEach(k=>{ const g=a.res.roles[k];
+    if(g&&g.value!=null&&g.digits.length>=3&&g.chars.every(c=>/[\d-]/.test(c))) o[k]=g.value; }); return o; }
+  function vote(hist,ks){
+    const pick={};
+    for(const k of ks){ const c=new Map(); hist.forEach(h=>{ if(h[k]!=null) c.set(h[k],(c.get(h[k])||0)+1); });
+      let best=null,n=0; c.forEach((v,key)=>{ if(v>n){ n=v; best=key; } }); if(best!=null) pick[k]={v:best,n}; }
+    return pick;
+  }
+  function voteSolve(pick,ks){
+    if(!ks.every(k=>pick[k])) return null;
+    const target=S.rules.start*N();
+    for(const unit of [100,10]){ const vals=ks.map(k=>pick[k].v*unit);
+      if(vals.every(v=>v%100===0&&Math.abs(v)<=target*1.5)&&vals.reduce((x,y)=>x+y,0)===target) return Object.fromEntries(ks.map((k,i)=>[k,{v:String(vals[i])}])); }
+    return null;
+  }
   async function loop(id){
     while(video.readyState<2&&id===run) await new Promise(r=>setTimeout(r,50));
-    const cv=stackCanvas(video.videoWidth,video.videoHeight); let last='', tries=0;
+    const cv=stackCanvas(video.videoWidth,video.videoHeight); let tries=0; const hist=[];
     msg('点数表示が画面の横幅いっぱいに入るくらいまで近づけてください。4人の合計が合うと自動で読み取ります。');
+    const showRead=(ks,pick)=>{ $('liveRead').innerHTML=ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${pick[k]?esc(String(pick[k].v*100)):'—'}</b>${pick[k]?' ✓':''}</span>`).join(''); };
+    const consider=(a,src,mode)=>{
+      hist.push(exactReads(a)); if(hist.length>12) hist.shift();
+      const pick=vote(hist,a.ks); showRead(a.ks,pick);
+      if(a.sure){ accept(a,src,mode); return true; }
+      const vals=voteSolve(pick,a.ks);
+      if(vals){ accept(Object.assign({},a,{vals,note:{},raw:Object.fromEntries(a.ks.map(k=>[k,String(pick[k].v)])),solved:true,sure:true}),src,mode); return true; }
+      return false;
+    };
     while(id===run){
       const cx=stackBegin(cv), t0=performance.now(); let nf=0;
-      while(id===run&&performance.now()-t0<500){ cx.drawImage(video,0,0,cv.width,cv.height); nf++;
+      while(id===run&&performance.now()-t0<400){ cx.drawImage(video,0,0,cv.width,cv.height); nf++;
         if(nf===1&&dbgSave){ rawCv.width=cv.width; rawCv.height=cv.height; rawCv.getContext('2d').drawImage(video,0,0,cv.width,cv.height); }
         await nextFrame(); }
       if(id!==run) return;
@@ -743,20 +769,16 @@ const Live=(()=>{
       const ta=performance.now(), a=analyzeScan(cv); tries++;
       if(dbg) drawDbg(a,cv,nf,Math.round(performance.now()-ta));
       if(dbgSave){ dbgSave=false; await saveDebug(a,cv); }
-      $('liveRead').innerHTML=a.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${a.res.roles[k]&&a.res.roles[k].text?esc(a.res.roles[k].text):'—'}</b></span>`).join('');
-      // 合計が合う読み方が2回続けて同じなら確定（手ブレ中の読み違いを避ける）
-      const key=a.sure?readKey(a):'';
-      if(key&&key===last){ accept(a,cv,'live'); return; }
-      last=key;
-      // 映像で読めないとき（または「この映像で読み取る」）は写真モードで撮って読む
-      if(ic&&(manual||!a.sure)){
+      if(consider(a,cv,'live')) return;
+      // 写真モードでも時々撮って、同じ多数決に加える（「この映像で読み取る」のときは必ず撮る）
+      if(ic&&(manual||tries%3===0)){
         const pc=await photoCanvas(); if(id!==run) return;
         if(pc){ const b=analyzeScan(pc); if(dbg) drawDbg(b,pc,'写真',0);
-          $('liveRead').innerHTML=b.ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${b.res.roles[k]&&b.res.roles[k].text?esc(b.res.roles[k].text):'—'}</b></span>`).join('');
-          if(b.sure||manual){ accept(b.sure||!a.solved?b:a,b.sure||!a.solved?pc:cv,'live-photo'); return; } }
+          if(consider(b,pc,'live-photo')) return;
+          if(manual){ accept(b.solved||!a.solved?b:a,b.solved||!a.solved?pc:cv,'live-photo'); return; } }
       }
       if(manual){ accept(a,cv,'live'); return; }
-      if(tries===12) msg('読み取れないときは、表示に近づけるか「この映像で読み取る」を押して手で直してください。');
+      if(tries===15) msg('読み取れないときは、反射が入らない角度に少し傾けるか「この映像で読み取る」を押して手で直してください。');
       await new Promise(r=>setTimeout(r,0));
     }
   }
