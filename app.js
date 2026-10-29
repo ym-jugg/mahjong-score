@@ -926,7 +926,7 @@ function copyText(txt,btn){
 }
 function selectFallback(btn){ const inp=btn.parentElement.querySelector('input'); if(inp){ inp.focus(); inp.select(); } }
 function renderShare(){
-  const box=$('shareBox'); if(!box||$('v-share').hidden) return;
+  const box=$('shareBox'); if(!box||!$('shareDlg').open) return;
   const u=Sync.user, m=Sync.msg?`<div class="check ${/参加しました|作りました|作り直しました/.test(Sync.msg)?'ok':'ng'}" style="margin:0">${esc(Sync.msg)}</div>`:'';
   if(!Cloud.configured){ box.innerHTML='<div class="panel empty">共有機能はまだ設定されていません。</div>'; return; }
   if(!u){
@@ -1111,6 +1111,11 @@ $('statsBox').addEventListener('click',e=>{
   renderStats();
 });
 
+/* ---------- ログイン・共有、プライバシーポリシー（モーダル） ---------- */
+function openShare(){ Sync.start(); renderShare(); const d=$('shareDlg'); if(!d.open) d.showModal(); }
+$('shareClose').addEventListener('click',()=>{ blur(); $('shareDlg').close(); });
+$('shareDlg').addEventListener('close',()=>update());
+$('privacyClose').addEventListener('click',()=>$('privacyDlg').close());
 /* ---------- ルール・メンバー設定（モーダル） ---------- */
 function openSettings(){ renderRules(); renderPlayers(); $('settingsDlg').showModal(); $('settingsDlg').querySelector('.fulldlg-body').scrollTop=0; }
 $('settingsBtn').addEventListener('click',openSettings);
@@ -1119,13 +1124,13 @@ $('settingsDlg').addEventListener('close',()=>{ update(); });
 
 /* ---------- nav ---------- */
 function show(v){
-  S.view=v;
+  const prev=S.view;
   if(v==='players'||v==='rules') v='game';  // ルール・メンバーは設定画面（モーダル）に移した
-  if(RO&&(v==='share'||v==='stats')) v='total';
+  // 共有はタブではなく、右上で閉じる画面（モーダル）で開く
+  if(v==='share'){ if(!RO&&Cloud.configured) openShare(); v=prev&&!['share','rules','players'].includes(prev)?prev:'game'; }
+  if(RO&&v==='stats') v='total';
   S.view=v;
-  ['game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
-  $('menuBtn').classList.toggle('on',v==='share');
-  if(v==='share') renderShare();
+  ['game','total','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
   if(v==='stats') renderStats();
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   save();
@@ -1154,6 +1159,7 @@ $('menuBtn').addEventListener('click',()=>{ menu.querySelectorAll('[data-go]').f
 $('menuClose').addEventListener('click',()=>menu.close());
 menu.addEventListener('click',e=>{
   if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる
+  if(e.target.closest('#menuPrivacy')){ e.preventDefault(); menu.close(); if(!$('privacyFrame').src) $('privacyFrame').src='privacy.html'; $('privacyDlg').showModal(); return; }
   if(e.target.closest('#menuLogin')){ menu.close();
     (async()=>{ try{ await Sync.start(); if(Sync.user){ await Cloud.signOut(); Sync.toLocal(); update(); } else await Cloud.signIn(); }
       catch(err){ Sync.msg=err.message; show('share'); update(); } })(); return; }

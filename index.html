@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=35">
+<link rel="stylesheet" href="style.css?v=36">
 </head>
 <body>
 <div class="wrap">
@@ -126,12 +126,6 @@
   </section>
 
   <!-- 共有 -->
-  <section class="view" id="v-share" hidden>
-    <div class="sec">
-      <h2>共有<span class="sub">Googleでログインしてメンバーと同じデータを使う</span></h2>
-      <div id="shareBox" style="display:grid;gap:12px"></div>
-    </div>
-  </section>
 </div>
 
 <nav class="tabs" aria-label="画面切り替え">
@@ -245,6 +239,18 @@
   </div>
 </dialog>
 
+<dialog id="shareDlg" class="fulldlg" aria-labelledby="shareTitle">
+  <div class="fulldlg-hd"><h2 id="shareTitle">ログイン・共有</h2><button type="button" class="btn" id="shareClose">閉じる</button></div>
+  <div class="fulldlg-body">
+    <div id="shareBox" style="display:grid;gap:12px"></div>
+  </div>
+</dialog>
+
+<dialog id="privacyDlg" class="fulldlg" aria-labelledby="privacyTitle">
+  <div class="fulldlg-hd"><h2 id="privacyTitle">プライバシーポリシー</h2><button type="button" class="btn" id="privacyClose">閉じる</button></div>
+  <iframe id="privacyFrame" title="プライバシーポリシー" class="docframe"></iframe>
+</dialog>
+
 <dialog id="shooterDlg" class="pickdlg" aria-labelledby="shooterTitle">
   <div class="sheet-hd"><h2 id="shooterTitle">撮影するのは誰？</h2><button type="button" class="btn ghost" id="shooterClose">やめる</button></div>
   <p class="hint" style="margin:0 0 12px">撮影する人の手元の表示を「自分」として、ほかの3人の席を割り当てます。</p>
@@ -268,14 +274,14 @@
     <div class="menulist">
       <button type="button" class="cloud-only" id="menuLogin"><span class="k" id="menuLoginK">入</span><span><b id="menuLoginT">ログイン</b><small id="menuLoginS">Googleアカウントでログイン</small></span></button>
       <button type="button" class="cloud-only" data-go="share"><span class="k">共</span><span><b>共有</b><small>招待リンク・QRコード</small></span></button>
-      <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
+      <a href="privacy.html" id="menuPrivacy"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
   </div>
 </dialog>
-<script src="config.js?v=35"></script>
-<script src="cloud.js?v=35"></script>
-<script src="ocr.js?v=35"></script>
-<script src="app.js?v=35"></script>
+<script src="config.js?v=36"></script>
+<script src="cloud.js?v=36"></script>
+<script src="ocr.js?v=36"></script>
+<script src="app.js?v=36"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>
