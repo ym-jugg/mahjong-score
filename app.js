@@ -1119,7 +1119,7 @@ function show(v){
   if(RO&&(v==='share'||v==='stats')) v='total';
   S.view=v;
   ['game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
-  $('menuBtn').classList.toggle('on',v==='stats'); $('shareBtn').classList.toggle('on',v==='share');
+  $('shareBtn').classList.toggle('on',v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.view===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
 <div class="wrap">
@@ -121,7 +121,7 @@
   <!-- 成績 -->
   <section class="view" id="v-stats" hidden>
     <div class="sec">
-      <h2>成績<span class="sub">この卓のメンバー全員</span></h2>
+      <h2>分析<span class="sub">この卓のメンバー全員の成績</span></h2>
       <div id="statsBox" style="display:grid;gap:14px"></div>
     </div>
   </section>
@@ -139,6 +139,7 @@
   <div class="in">
     <button type="button" data-view="game"><span class="k">局</span>対局</button>
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
+    <button type="button" data-view="stats" class="ro-hide"><span class="k">析</span>分析</button>
   </div>
 </nav>
 
@@ -266,15 +267,14 @@
   <div class="sheet-in">
     <div class="sheet-hd"><h2 id="menuTitle">メニュー</h2><button type="button" class="btn ghost" id="menuClose">閉じる</button></div>
     <div class="menulist">
-      <button type="button" data-go="stats"><span class="k">績</span><span><b>成績</b><small>この卓のメンバー全員のトップ率・連対率・グラフ</small></span></button>
       <a href="privacy.html"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
   </div>
 </dialog>
-<script src="config.js?v=33"></script>
-<script src="cloud.js?v=33"></script>
-<script src="ocr.js?v=33"></script>
-<script src="app.js?v=33"></script>
+<script src="config.js?v=34"></script>
+<script src="cloud.js?v=34"></script>
+<script src="ocr.js?v=34"></script>
+<script src="app.js?v=34"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>
