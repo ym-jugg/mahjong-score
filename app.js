@@ -566,7 +566,7 @@ $('archiveList').addEventListener('click',async e=>{
   }
   renderArchives();
 });
-$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('rules'); update(); setTimeout(()=>{const f=$('name0'); if(f){ $('v-players').scrollIntoView({block:'start'}); f.focus({preventScroll:true}); }},50); });
+$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('game'); update(); openSettings(); setTimeout(()=>{const f=$('name0'); if(f) f.focus(); },50); });
 
 /* ---------- 撮影読み取り ---------- */
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
@@ -1106,14 +1106,19 @@ $('statsBox').addEventListener('click',e=>{
   renderStats();
 });
 
+/* ---------- ルール・メンバー設定（モーダル） ---------- */
+function openSettings(){ renderRules(); renderPlayers(); $('settingsDlg').showModal(); $('settingsDlg').querySelector('.fulldlg-body').scrollTop=0; }
+$('settingsBtn').addEventListener('click',openSettings);
+$('settingsClose').addEventListener('click',()=>{ blur(); $('settingsDlg').close(); });
+$('settingsDlg').addEventListener('close',()=>{ update(); });
+
 /* ---------- nav ---------- */
 function show(v){
   S.view=v;
-  if(v==='players') v='rules';  // メンバーはルール画面の下にまとめた
-  if(RO&&(v==='rules'||v==='share'||v==='stats')) v='total';
+  if(v==='players'||v==='rules') v='game';  // ルール・メンバーは設定画面（モーダル）に移した
+  if(RO&&(v==='share'||v==='stats')) v='total';
   S.view=v;
-  ['rules','game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
-  $('v-players').hidden=v!=='rules';
+  ['game','total','share','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
   $('menuBtn').classList.toggle('on',v==='stats'); $('shareBtn').classList.toggle('on',v==='share');
   if(v==='share') renderShare();
   if(v==='stats') renderStats();
@@ -1134,7 +1139,7 @@ document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.targe
     const i=tabs.indexOf(S.view); if(i<0) return;
     const j=i+(dx<0?1:-1); if(j<0||j>=tabs.length) return;
     show(tabs[j]); update(); window.scrollTo(0,0);
-    [$('v-'+tabs[j])].concat(tabs[j]==='rules'?[$('v-players')]:[]).forEach(v=>{ v.classList.remove('swl','swr'); void v.offsetWidth; v.classList.add(dx<0?'swl':'swr'); });
+    [$('v-'+tabs[j])].forEach(v=>{ v.classList.remove('swl','swr'); void v.offsetWidth; v.classList.add(dx<0?'swl':'swr'); });
   },{passive:true});
   addEventListener('touchcancel',()=>{ t0=null; },{passive:true});
 })();

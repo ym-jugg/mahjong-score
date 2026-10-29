@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=32">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 <div class="wrap">
@@ -27,109 +27,12 @@
       <button type="button" class="hbtn" id="menuBtn" aria-label="メニュー" aria-haspopup="dialog" aria-controls="menu"><span class="bars" aria-hidden="true"></span><span class="mtx">メニュー</span></button>
     </div>
   </header>
-  <div class="meta"><span id="modeLbl"></span><div class="chips" id="ruleChips"></div></div>
+  <div class="meta"><div class="metarow"><span id="modeLbl"></span><button type="button" class="setbtn ro-hide" id="settingsBtn" aria-haspopup="dialog" aria-controls="settingsDlg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>ルール・メンバー設定</button></div><div class="chips" id="ruleChips"></div></div>
   <div id="cloudState" class="cloudbar" hidden></div>
   <div id="sampleBanner" class="banner" hidden>
     <span>表示中のメンバーと記録はサンプルです。</span>
     <button type="button" id="startFresh">新しい卓を始める</button>
   </div>
-
-  <!-- メンバー -->
-  <section class="view" id="v-players" hidden>
-    <div class="sec">
-      <h2>メンバー<span class="sub">席（東南西北）は半荘ごとに対局画面で決めます</span></h2>
-      <div class="panel" style="margin-bottom:10px">
-        <div class="row"><span class="lbl">メンバーの人数</span>
-          <div class="seg" id="segMembers"></div>
-          <span class="hint" id="memHint"></span>
-        </div>
-      </div>
-      <div class="panel" id="seatList"></div>
-      <p class="hint" style="margin:8px 2px 0">名前は途中で変えても記録はそのまま残ります。</p>
-    </div>
-  </section>
-
-  <!-- ルール -->
-  <section class="view" id="v-rules" hidden>
-    <div class="sec">
-      <h2>基本</h2>
-      <div class="panel">
-        <div class="row"><span class="lbl">人数</span>
-          <div class="seg" id="segPlayers"><button type="button" data-v="4">4人麻雀</button><button type="button" data-v="3">3人麻雀</button></div>
-        </div>
-        <div class="row"><span class="lbl">レート</span>
-          <div class="seg" id="segRate"><button type="button" data-v="0.5">0.5<small>テンゴ</small></button><button type="button" data-v="0.75">0.75<small>テンナナゴ</small></button><button type="button" data-v="1">1<small>テンピン</small></button><button type="button" data-v="2">2<small>テンリャン</small></button><button type="button" data-v="custom">その他</button></div>
-          <div id="rateCustomRow" hidden><label class="field" style="max-width:220px"><span class="unit">1000点＝</span><input id="inRateYen" inputmode="decimal" aria-label="1000点あたりの金額（円）"><span class="unit">円</span></label></div>
-          <span class="hint" id="rateHint"></span>
-        </div>
-        <div class="row"><span class="lbl">持ち点 / 返し</span>
-          <div class="grid2">
-            <div><div class="mini">配給原点</div><label class="field"><input id="inStart" inputmode="numeric" aria-label="配給原点"><span class="unit">点</span></label></div>
-            <div><div class="mini">返し点</div><label class="field"><input id="inRet" inputmode="numeric" aria-label="返し点"><span class="unit">点</span></label></div>
-          </div>
-          <span class="hint" id="okaHint"></span>
-        </div>
-        <div class="row"><span class="lbl">端数処理</span>
-          <div class="seg" id="segRound"><button type="button" data-v="gosha">五捨六入</button><button type="button" data-v="shisha">四捨五入</button><button type="button" data-v="kirisute">切り捨て</button><button type="button" data-v="none">小数で計算</button></div>
-          <span class="hint">1000点＝1ptに換算するときの百の位の扱い。トップは他家の合計で調整します。</span>
-        </div>
-        <div class="row"><span class="lbl">同点のとき</span>
-          <div class="seg" id="segTie"><button type="button" data-v="kicha">起家優先</button><button type="button" data-v="kamicha">上家取り</button><button type="button" data-v="split">分け合い</button></div>
-          <span class="hint" id="tieHint"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>ウマ<span class="sub">順位点</span></h2>
-      <div class="panel">
-        <div class="row">
-          <div class="seg" id="segUma"></div>
-          <div id="umaCustom" hidden>
-            <div class="grid4" id="umaFields"></div>
-            <div class="warnline" id="umaWarn" hidden></div>
-          </div>
-          <span class="hint" id="umaHint"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>チップ</h2>
-      <div class="panel">
-        <div class="row">
-          <div class="grid2">
-            <div><div class="mini">初期枚数</div><label class="field"><input id="inChipInit" inputmode="numeric" aria-label="チップ初期枚数"><span class="unit">枚</span></label></div>
-            <div><div class="mini">1枚の価値</div><label class="field"><input id="inChipPt" inputmode="decimal" aria-label="チップ1枚の価値"><span class="unit">pt</span></label></div>
-          </div>
-          <span class="hint" id="chipHint"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>飛び賞</h2>
-      <div class="panel">
-        <div class="row toggle"><span>飛び賞あり</span><button type="button" class="sw" role="switch" id="swTobi" aria-label="飛び賞"></button></div>
-        <div class="row" id="tobiPtRow">
-          <div class="grid2"><div><div class="mini">飛び賞</div><label class="field"><input id="inTobiPt" inputmode="decimal" aria-label="飛び賞のpt"><span class="unit">pt</span></label></div></div>
-          <span class="hint" id="tobiHint"></span>
-        </div>
-        <div class="row" id="tobiAtRow"><span class="lbl">飛びの判定</span>
-          <div class="seg" id="segTobiAt"><button type="button" data-v="neg">0点未満で飛び</button><button type="button" data-v="zero">0点ちょうども飛び</button></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h2>ローカルルール</h2>
-      <div class="panel">
-        <div class="row toggle"><span>喰いタン</span><button type="button" class="sw" role="switch" id="swKuitan" aria-label="喰いタン"></button></div>
-        <div class="row toggle"><span>後付け</span><button type="button" class="sw" role="switch" id="swAto" aria-label="後付け"></button></div>
-        <div class="row"><span class="hint">この2つは記録用です。点数計算には影響しません。</span></div>
-      </div>
-    </div>
-  </section>
 
   <!-- 対局 -->
   <section class="view" id="v-game" hidden>
@@ -234,11 +137,113 @@
 
 <nav class="tabs" aria-label="画面切り替え">
   <div class="in">
-    <button type="button" data-view="rules" class="ro-hide"><span class="k">則</span>ルール</button>
     <button type="button" data-view="game"><span class="k">局</span>対局</button>
     <button type="button" data-view="total"><span class="k">算</span>精算</button>
   </div>
 </nav>
+
+<dialog id="settingsDlg" class="fulldlg" aria-labelledby="settingsTitle">
+  <div class="fulldlg-hd"><h2 id="settingsTitle">ルール・メンバー設定</h2><button type="button" class="btn" id="settingsClose">完了</button></div>
+  <div class="fulldlg-body">
+  <!-- メンバー -->
+  <section id="v-players">
+    <div class="sec">
+      <h2>メンバー<span class="sub">席（東南西北）は半荘ごとに対局画面で決めます</span></h2>
+      <div class="panel" style="margin-bottom:10px">
+        <div class="row"><span class="lbl">メンバーの人数</span>
+          <div class="seg" id="segMembers"></div>
+          <span class="hint" id="memHint"></span>
+        </div>
+      </div>
+      <div class="panel" id="seatList"></div>
+      <p class="hint" style="margin:8px 2px 0">名前は途中で変えても記録はそのまま残ります。</p>
+    </div>
+  </section>
+
+  <!-- ルール -->
+  <section id="v-rules">
+    <div class="sec">
+      <h2>基本</h2>
+      <div class="panel">
+        <div class="row"><span class="lbl">人数</span>
+          <div class="seg" id="segPlayers"><button type="button" data-v="4">4人麻雀</button><button type="button" data-v="3">3人麻雀</button></div>
+        </div>
+        <div class="row"><span class="lbl">レート</span>
+          <div class="seg" id="segRate"><button type="button" data-v="0.5">0.5<small>テンゴ</small></button><button type="button" data-v="0.75">0.75<small>テンナナゴ</small></button><button type="button" data-v="1">1<small>テンピン</small></button><button type="button" data-v="2">2<small>テンリャン</small></button><button type="button" data-v="custom">その他</button></div>
+          <div id="rateCustomRow" hidden><label class="field" style="max-width:220px"><span class="unit">1000点＝</span><input id="inRateYen" inputmode="decimal" aria-label="1000点あたりの金額（円）"><span class="unit">円</span></label></div>
+          <span class="hint" id="rateHint"></span>
+        </div>
+        <div class="row"><span class="lbl">持ち点 / 返し</span>
+          <div class="grid2">
+            <div><div class="mini">配給原点</div><label class="field"><input id="inStart" inputmode="numeric" aria-label="配給原点"><span class="unit">点</span></label></div>
+            <div><div class="mini">返し点</div><label class="field"><input id="inRet" inputmode="numeric" aria-label="返し点"><span class="unit">点</span></label></div>
+          </div>
+          <span class="hint" id="okaHint"></span>
+        </div>
+        <div class="row"><span class="lbl">端数処理</span>
+          <div class="seg" id="segRound"><button type="button" data-v="gosha">五捨六入</button><button type="button" data-v="shisha">四捨五入</button><button type="button" data-v="kirisute">切り捨て</button><button type="button" data-v="none">小数で計算</button></div>
+          <span class="hint">1000点＝1ptに換算するときの百の位の扱い。トップは他家の合計で調整します。</span>
+        </div>
+        <div class="row"><span class="lbl">同点のとき</span>
+          <div class="seg" id="segTie"><button type="button" data-v="kicha">起家優先</button><button type="button" data-v="kamicha">上家取り</button><button type="button" data-v="split">分け合い</button></div>
+          <span class="hint" id="tieHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>ウマ<span class="sub">順位点</span></h2>
+      <div class="panel">
+        <div class="row">
+          <div class="seg" id="segUma"></div>
+          <div id="umaCustom" hidden>
+            <div class="grid4" id="umaFields"></div>
+            <div class="warnline" id="umaWarn" hidden></div>
+          </div>
+          <span class="hint" id="umaHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>チップ</h2>
+      <div class="panel">
+        <div class="row">
+          <div class="grid2">
+            <div><div class="mini">初期枚数</div><label class="field"><input id="inChipInit" inputmode="numeric" aria-label="チップ初期枚数"><span class="unit">枚</span></label></div>
+            <div><div class="mini">1枚の価値</div><label class="field"><input id="inChipPt" inputmode="decimal" aria-label="チップ1枚の価値"><span class="unit">pt</span></label></div>
+          </div>
+          <span class="hint" id="chipHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>飛び賞</h2>
+      <div class="panel">
+        <div class="row toggle"><span>飛び賞あり</span><button type="button" class="sw" role="switch" id="swTobi" aria-label="飛び賞"></button></div>
+        <div class="row" id="tobiPtRow">
+          <div class="grid2"><div><div class="mini">飛び賞</div><label class="field"><input id="inTobiPt" inputmode="decimal" aria-label="飛び賞のpt"><span class="unit">pt</span></label></div></div>
+          <span class="hint" id="tobiHint"></span>
+        </div>
+        <div class="row" id="tobiAtRow"><span class="lbl">飛びの判定</span>
+          <div class="seg" id="segTobiAt"><button type="button" data-v="neg">0点未満で飛び</button><button type="button" data-v="zero">0点ちょうども飛び</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>ローカルルール</h2>
+      <div class="panel">
+        <div class="row toggle"><span>喰いタン</span><button type="button" class="sw" role="switch" id="swKuitan" aria-label="喰いタン"></button></div>
+        <div class="row toggle"><span>後付け</span><button type="button" class="sw" role="switch" id="swAto" aria-label="後付け"></button></div>
+        <div class="row"><span class="hint">この2つは記録用です。点数計算には影響しません。</span></div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+</dialog>
 
 <dialog id="shooterDlg" class="pickdlg" aria-labelledby="shooterTitle">
   <div class="sheet-hd"><h2 id="shooterTitle">撮影するのは誰？</h2><button type="button" class="btn ghost" id="shooterClose">やめる</button></div>
@@ -266,10 +271,10 @@
     </div>
   </div>
 </dialog>
-<script src="config.js?v=32"></script>
-<script src="cloud.js?v=32"></script>
-<script src="ocr.js?v=32"></script>
-<script src="app.js?v=32"></script>
+<script src="config.js?v=33"></script>
+<script src="cloud.js?v=33"></script>
+<script src="ocr.js?v=33"></script>
+<script src="app.js?v=33"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>

@@ -333,3 +333,17 @@ body{margin:0}
 .live-links{display:flex;justify-content:center;gap:12px}
 button.live-pick{-webkit-appearance:none;appearance:none;background:transparent;border:0;font:inherit;color:#cfe3da}
 a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+
+/* ルール・メンバー設定（モーダル） */
+.metarow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.setbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--felt);background:var(--surface);color:var(--felt);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap}
+.setbtn svg{width:15px;height:15px;flex:none}
+.fulldlg{border:0;padding:0;margin:0;width:100%;height:100%;max-width:none;max-height:none;background:var(--bg);color:var(--ink)}
+.fulldlg[open]{display:flex;flex-direction:column;animation:drawerIn .22s ease-out}
+.fulldlg::backdrop{background:rgba(20,28,24,.45)}
+.fulldlg-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
+.fulldlg-hd h2{margin:0;font-family:var(--serif);font-size:18px}
+.fulldlg-hd .btn{width:auto;padding:8px 18px;font-size:14px}
+.fulldlg-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px calc(24px + env(safe-area-inset-bottom,0px));max-width:720px;width:100%;margin:0 auto;box-sizing:border-box}
+.fulldlg-body{padding-top:18px}
+.fulldlg-body section+section{margin-top:26px}
