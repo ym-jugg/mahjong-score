@@ -247,17 +247,19 @@ $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==nu
 const touched=i=>{ const d=S.draft['p'+i]; return d!=null&&d!==''&&d!=='-'&&!isNaN(parseInt(d,10)); };
 function parseDraft(i){ return touched(i)?parseInt(S.draft['p'+i],10):S.rules.start; }
 /* −／＋で100点ずつ増減する入力欄（長押しで連続、続けると1000点ずつ） */
+// 入力欄は百の位まで（下二桁は「00」固定）。例：250 と打つと 25,000点
+const hund=v=>v==null||v===''||isNaN(Number(v))?'':String(Math.round(Number(v)/100));
 function stepperHTML(key,val,isDef,label,cmp){
   return `<div class="stp ${isDef?'def':''} ${cmp?'cmp':''}" data-k="${key}">
     <button type="button" class="stb" data-d="-100" aria-label="${label}を100点減らす">−</button>
-    <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${val}" aria-label="${label}の持ち点"><span class="zz">点</span></div>
+    <div class="stv"><button type="button" class="sgn" data-sgn="1" aria-label="${label}のプラスとマイナスを切り替え">±</button><input id="${key.replace(':','_')}" inputmode="numeric" autocomplete="off" value="${isDef?'':hund(val)}" placeholder="${hund(val)}" aria-label="${label}の持ち点（百点単位）"><span class="z0" aria-hidden="true">00</span><span class="zz">点</span></div>
     <button type="button" class="stb" data-d="100" aria-label="${label}を100点増やす">＋</button></div>`;
 }
 let hold=null;
 function stopHold(){ if(hold){ clearTimeout(hold.t); hold=null; } }
 ['pointerup','pointercancel','blur'].forEach(ev=>addEventListener(ev,stopHold));
 function bindStepper(box,get,set){
-  const apply=(stp,d)=>{ const k=stp.dataset.k, v=get(k)+d; set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=v; stp.classList.remove('def'); };
+  const apply=(stp,d)=>{ const k=stp.dataset.k, v=get(k)+d; set(k,v); const inp=stp.querySelector('input'); if(document.activeElement!==inp) inp.value=hund(v); stp.classList.remove('def'); };
   // 押した瞬間には動かさない：指を離したタップで1回、指を止めて長押ししたときだけ連続。
   // スクロール（指が動いた）ときは何もしない
   let start=null, held=false;
@@ -281,8 +283,15 @@ function bindStepper(box,get,set){
   box.addEventListener('input',e=>{
     const stp=e.target.closest('.stp'); if(!stp) return;
     let t=e.target.value.replace(/[−ー－]/g,'-').replace(/[^0-9-]/g,''); t=(t.startsWith('-')?'-':'')+t.replace(/-/g,'');
-    e.target.value=t; stp.classList.remove('def'); set(stp.dataset.k,t);
+    e.target.value=t; e.target.dataset.typed='1';
+    const empty=t===''||t==='-'; stp.classList.toggle('def',empty);
+    set(stp.dataset.k,empty?t:String(parseInt(t,10)*100));
   });
+  // タップしたら空欄から打ち始める。何も打たずに離れたら元の値に戻す
+  box.addEventListener('focusin',e=>{ const inp=e.target; if(!(inp.tagName==='INPUT'&&inp.closest('.stp'))) return;
+    inp.dataset.prev=inp.value; inp.dataset.typed=''; inp.value=''; });
+  box.addEventListener('focusout',e=>{ const inp=e.target; if(!(inp.tagName==='INPUT'&&inp.closest('.stp'))) return;
+    if(!inp.dataset.typed&&inp.value==='') inp.value=inp.dataset.prev||''; });
 }
 function renderEntry(){
   $('nextTitle').textContent=`第${S.games.length+1}半荘の持ち点`;

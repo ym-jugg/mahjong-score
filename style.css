@@ -188,8 +188,13 @@ table.cmp .pos{color:var(--felt)} table.cmp .neg{color:var(--shu)}
 .stv{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface2);overflow:hidden;min-width:0}
 .stv:focus-within{border-color:var(--felt)}
 .stv .sgn{width:34px;height:100%;border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;flex:none}
-.stv input{border:0;background:transparent;outline:none;text-align:right;width:100%;min-width:0;font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;padding:0 2px 0 6px;color:var(--ink)}
+.stv input{flex:1;border:0;background:transparent;outline:none;text-align:right;width:100%;min-width:0;font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;padding:0 2px 0 6px;color:var(--ink)}
 .stv .zz{font-size:13px;color:var(--muted);padding:0 10px 0 4px}
+.stv .z0{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);flex:none}
+.stp.cmp .stv .z0{font-size:18px}
+.stv input::placeholder{color:var(--muted);opacity:1;font-weight:500}
+.stp:not(.def) .stv input::placeholder{opacity:.5}
+.stp.def .stv .z0{color:var(--muted);opacity:.5;font-weight:500}
 .stp.def .stv input{color:var(--muted);opacity:.5;font-weight:500}
 input::placeholder{color:var(--muted);opacity:.45}
 /* scan */
