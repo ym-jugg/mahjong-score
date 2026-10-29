@@ -338,4 +338,4 @@ body{margin:0}
 .live-dbg-row{white-space:pre-line;display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:11px;color:#aab5b0}
 .live-dbg-row .btn{width:auto;padding:6px 10px;font-size:12px;background:transparent;color:#fff;border-color:#55605b;flex:none}
 .live-links{display:flex;justify-content:center;gap:12px}
-button.live-pick{background:none;border:0;font:inherit}
+button.live-pick{-webkit-appearance:none;appearance:none;background:transparent;border:0;font:inherit;color:#cfe3da}
