@@ -3,7 +3,7 @@
    新しいアドレス側では#の記録を受け取って保存し、#を消して読み込み直す。 */
 (function(){
   var FROM_HOST='ym-jugg.github.io';
-  var MOVE_TO=null;   // 例：'https://mahjong-score.vercel.app'（決まったら設定する）
+  var MOVE_TO='https://janshot.vercel.app';
   var PREFIX='jansou-scorebook-v1', TAG='#mj-move=';
   function cover(t){ var d=document.createElement('div'); d.textContent=t;
     d.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#EDF1EE;color:#15221E;font:16px sans-serif';
