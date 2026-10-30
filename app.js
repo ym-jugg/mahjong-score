@@ -50,9 +50,9 @@ function normalize(){
   if(S.rules.tobi==null){ S.rules.tobi=false; S.rules.tobiPt=10; S.rules.tobiAt='neg'; }
   // 旧形式（起家だけ保存）からの移行
   S.games.forEach(g=>{ if(!g.seat){ const n=g.pts.length,d=g.dealer||0; g.seat=g.pts.map((_,p)=>(p-d+n)%n); delete g.dealer; } });
-  // メンバーは卓の人数〜6人。卓に入らない人は席が -1（抜け番）
-  S.members=Math.min(6,Math.max(S.rules.players,S.members||S.names.filter(x=>x).length||S.rules.players));
-  while(S.names.length<6) S.names.push('');
+  // メンバーは卓の人数〜8人。卓に入らない人は席が -1（抜け番）
+  S.members=Math.min(8,Math.max(S.rules.players,S.members||S.names.filter(x=>x).length||S.rules.players));
+  while(S.names.length<8) S.names.push('');
   if(!validSeat(S.seat)) S.seat=defaultSeat();
   // 持ち点の入力は点数そのまま（25000）。以前の百点単位の入力途中データは消す
   if(S.draftV!==2&&S.draftV!==3){ S.draft={}; S.draftV=2; }
@@ -162,9 +162,7 @@ function renderHeader(){
     `<span class="chip">ウマ <b>${esc(umaTxt)}</b></span>`,
     `<span class="chip">同点 <b>${TIE_LBL[r.tie]}</b></span>`,
     `<span class="chip">チップ <b>${r.chipInit}</b>枚・1枚<b>${r.chipPt}</b>pt</span>`,
-    r.tobi?`<span class="chip">飛び賞 <b>${r.tobiPt}</b>pt</span>`:`<span class="chip off">飛び賞</span>`,
-    `<span class="chip ${r.kuitan?'on':'off'}">喰いタン</span>`,
-    `<span class="chip ${r.atozuke?'on':'off'}">後付け</span>`
+    r.tobi?`<span class="chip">飛び賞 <b>${r.tobiPt}</b>pt</span>`:`<span class="chip off">飛び賞</span>`
   ].join('');
   $('sampleBanner').hidden=!S.sample||RO;
   const cs=$('cloudState');
@@ -205,8 +203,6 @@ function renderRules(){
   if(document.activeElement!==$('inTobiPt')) $('inTobiPt').value=r.tobiPt;
   setSeg($('segTobiAt'),r.tobiAt);
   $('tobiHint').textContent=`飛んだ人が−${fix(Number(r.tobiPt)||0)}pt（${fmtYen(-yen(Number(r.tobiPt)||0))}）、飛ばした人が+${fix(Number(r.tobiPt)||0)}pt。`;
-  $('swKuitan').setAttribute('aria-checked',String(r.kuitan));
-  $('swAto').setAttribute('aria-checked',String(r.atozuke));
 }
 function bindSeg(el,fn){ el.addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ fn(b.dataset.v); update(); } }); }
 bindSeg($('segPlayers'),v=>{
@@ -225,19 +221,17 @@ $('umaFields').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==n
 $('swTobi').addEventListener('click',()=>{S.rules.tobi=!S.rules.tobi;update();});
 numIn('inTobiPt','tobiPt',true);
 bindSeg($('segTobiAt'),v=>{S.rules.tobiAt=v;});
-$('swKuitan').addEventListener('click',()=>{S.rules.kuitan=!S.rules.kuitan;update();});
-$('swAto').addEventListener('click',()=>{S.rules.atozuke=!S.rules.atozuke;update();});
 
 /* ---------- players ---------- */
 function usedMembers(){ return S.games.reduce((m,g)=>{ g.seat.forEach((w,i)=>{ if(w>=0) m=Math.max(m,i+1); }); return m; },0); }
 function renderPlayers(){
   const used=usedMembers();
-  $('segMembers').innerHTML=[3,4,5,6].filter(k=>k>=N()).map(k=>`<button type="button" data-v="${k}" ${k<used?'disabled':''}>${k}人</button>`).join('');
+  $('segMembers').innerHTML=[3,4,5,6,7,8].filter(k=>k>=N()).map(k=>`<button type="button" data-v="${k}" ${k<used?'disabled':''}>${k}人</button>`).join('');
   setSeg($('segMembers'),M());
   $('memHint').textContent=(M()>N()?`${N()}人で打ち、毎回${M()-N()}人が抜け番になります。抜け番は半荘ごとに対局画面で選びます。`:'全員が毎回卓に入ります。')
     +(used>N()?`（記録に${used}人目まで入っているので、それより少なくはできません）`:'');
   if($('seatList').contains(document.activeElement)) return;
-  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="tile sm" aria-label="メンバー${i+1}">${'一二三四五六'[i]}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
+  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="tile sm" aria-label="メンバー${i+1}">${'一二三四五六七八'[i]}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
 }
 $('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||b.disabled) return;
   const k=Number(b.dataset.v); if(k===M()) return;
@@ -571,7 +565,7 @@ $('archiveList').addEventListener('click',async e=>{
   }
   renderArchives();
 });
-$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('game'); update(); openSettings(); setTimeout(()=>{const f=$('name0'); if(f) f.focus(); },50); });
+$('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('game'); update(); openSettings(); setTimeout(()=>{const f=$('name0'); if(f) f.focus(); },50); });
 
 /* ---------- 撮影読み取り ---------- */
 const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
@@ -995,7 +989,7 @@ $('shareBox').addEventListener('click',async e=>{
       if(Sync.busy) return;
       const name=($('newTableName').value||'').trim()||'麻雀卓';
       Sync.busy=true; renderShare();
-      const base=S.sample?Object.assign({},S,{names:['','','','','',''],chips:[],games:[]}):S;
+      const base=S.sample?Object.assign({},S,{names:['','','','','','','',''],chips:[],games:[]}):S;
       const games=base.games.map(g=>{ const d=Object.assign({},g); delete d.id; return {id:uuid(),data:d}; });
       const t=await Cloud.createTable(name,sharedOf(base),games,Sync.displayName());
       Sync.busy=false; Sync.msg='共有の卓を作りました。招待リンクをメンバーに送ってください';
@@ -1023,7 +1017,7 @@ async function viewLoop(){
 
 /* ---------- 成績（この卓のメンバー全員） ---------- */
 const statsF={fee:true};
-const SERIES=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300'];  // メンバー1〜6の色（色覚の違いでも見分けやすい並び）
+const SERIES=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#8a63d2','#9a6a3a'];  // メンバー1〜8の色（色覚の違いでも見分けやすい並び）
 // ひとつの精算（今の記録、または過去の精算）を全員分まとめて計算する
 function evalSession(st){
   const saved=S;

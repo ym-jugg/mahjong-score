@@ -355,3 +355,4 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 .top h1.logo img{height:42px;width:auto;display:block;margin:-4px 0 -4px -6px}
 @media (max-width:350px){ .top h1.logo img{height:36px} }
 table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-weight:500}
+#segMembers{flex-wrap:nowrap}#segMembers button{flex:1 1 0;min-width:0;padding-inline:4px}
