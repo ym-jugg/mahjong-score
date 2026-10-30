@@ -358,4 +358,8 @@ table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-wei
 
 .savestate{margin-top:8px;font-size:12px;font-weight:700;text-align:right}
 .savestate.ok{color:var(--felt)} .savestate.wait{color:var(--muted)}
-.arc-confirm{animation:arcIn .25s ease-out;border:2px solid var(--felt)}@keyframes arcIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.arc-confirm{animation:arcIn .25s ease-out;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--felt);border-radius:12px;background:var(--felt-soft);color:var(--ink);font-size:14px;font-weight:700;gap:10px}
+.arc-confirm .msg{flex:1 1 100%;line-height:1.5}
+.arc-confirm .btns{display:flex;gap:8px;justify-content:flex-end;flex:1 1 100%}
+.arc-confirm .btn{width:auto;padding:8px 18px;font-size:14px;border-radius:10px}
+.arc-confirm.del{border-color:var(--shu);background:var(--shu-soft)}@keyframes arcIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

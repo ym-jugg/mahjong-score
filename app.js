@@ -576,10 +576,10 @@ function renderArchives(){
     const open=arcOpen===a.id, conf=arcConfirm&&arcConfirm.id===a.id?arcConfirm.kind:null;
     return `<div class="arc"><div class="trow"><div><b>${fmtDT(a.at)}</b>　${a.games}半荘<div class="hint">1位 ${esc(top.name)} ${fmtYen(top.fin)}</div></div>
       <div class="actions" style="margin:0"><button type="button" class="btn ghost" data-arc-view="${a.id}">${open?'閉じる':'見る'}</button><button type="button" class="btn ghost ro-hide" data-arc-restore="${a.id}">戻す</button></div></div>
-      ${conf==='restore'?`<div class="confirm arc-confirm">この精算を戻しますか？${S.games.length?'今の記録は「過去の精算」に保存してから戻します。':''}<button type="button" class="btn" style="width:auto" data-arc-restore-yes="${a.id}">戻す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
+      ${conf==='restore'?`<div class="confirm arc-confirm"><span class="msg">この精算を戻しますか？${S.games.length?'<br><small style="font-weight:500;color:var(--muted)">今の記録は「過去の精算」に保存してから戻します。</small>':''}</span><span class="btns"><button type="button" class="btn ghost" data-arc-no="1">やめる</button><button type="button" class="btn" data-arc-restore-yes="${a.id}">戻す</button></span></div>`:''}
       ${open?`<div class="tw"><table><thead><tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>合計pt</th><th>金額${a.feeTotal?'<small style="display:block;font-weight:500">場代込み</small>':''}</th></tr></thead><tbody>${a.rows.map(r=>`<tr><td class="nm">${esc(r.name)}<small>${r.ranks}</small></td><td class="${cls(r.pt)}">${fmtPt(r.pt)}</td><td class="yen ${cls(r.fin)}">${fmtYen(r.fin)}${r.fee?`<small class="feeNote">場代 −${r.fee.toLocaleString('ja-JP')}</small>`:''}</td></tr>`).join('')}</tbody></table></div>
         <div class="ro-hide" style="margin-top:6px"><button type="button" class="btn danger" data-arc-del="${a.id}">この記録を完全に消す</button></div>`:''}
-      ${conf==='del'?`<div class="confirm arc-confirm">完全に消すと戻せません。消しますか？<button type="button" class="btn danger" data-arc-del-yes="${a.id}">消す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
+      ${conf==='del'?`<div class="confirm arc-confirm del"><span class="msg">完全に消すと戻せません。消しますか？</span><span class="btns"><button type="button" class="btn ghost" data-arc-no="1">やめる</button><button type="button" class="btn danger" data-arc-del-yes="${a.id}">消す</button></span></div>`:''}
     </div>`; }).join('');
 }
 $('archiveList').addEventListener('click',async e=>{
