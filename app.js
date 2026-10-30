@@ -1199,7 +1199,6 @@ function show(v){
   if(v==='players'||v==='rules') v='game';  // ルール・メンバーは設定画面（モーダル）に移した
   // 共有はタブではなく、右上で閉じる画面（モーダル）で開く
   if(v==='share'){ if(!RO&&Cloud.configured) openShare(); v=prev&&!['share','rules','players'].includes(prev)?prev:'game'; }
-  if(RO&&v==='stats') v='total';
   S.view=v;
   ['game','total','stats'].forEach(k=>$('v-'+k).hidden=k!==v);
   if(v==='stats') renderStats();
