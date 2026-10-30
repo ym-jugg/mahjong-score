@@ -86,6 +86,7 @@ function save(){
   if(S.cloud) stampChanges();
   lsSet(S.cloud?tKey(S.cloud.id):KEY,JSON.stringify(S));
   if(S.cloud) Sync.pushState();
+  renderSaveState();
 }
 
 const $=id=>document.getElementById(id);
@@ -159,7 +160,14 @@ const blur=()=>{ if(document.activeElement&&document.activeElement!==document.bo
 function unsample(){ if(S.sample){ S.sample=false; $('sampleBanner').hidden=true; } }
 
 /* ---------- header ---------- */
-function renderHeader(){
+function renderSaveState(){
+  const el=$('chipSaved'); if(!el) return;
+  if(RO){ el.textContent=''; return; }
+  const pend=S.cloud&&(S.cloud.dirty||!Sync.user);
+  el.className='savestate '+(pend?'wait':'ok');
+  el.textContent=S.cloud?(pend?(navigator.onLine===false?'未送信（通信が戻ると自動で送ります）':'保存中…'):'✓ 共有の卓に保存済み'):'✓ この端末に保存済み';
+}
+function renderHeader(){ renderSaveState();
   const r=S.rules, u=umaArr();
   // メニューのボタン名とログインの項目は、ログインしているかどうかで切り替える
   if(Cloud.configured&&!RO){ const u=Sync.user;
@@ -267,7 +275,7 @@ $('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button')
   S.members=k;
   const ns=S.seat.slice(0,k); while(ns.length<k) ns.push(-1);
   S.seat=validSeat(ns)?ns:defaultSeat();
-  S.chips=[]; unsample(); update(); });
+  unsample(); update(); });  // チップは消さない（人数を戻せば元の枚数のまま）
 $('seatList').addEventListener('input',e=>{ const i=e.target.dataset.i; if(i==null) return; S.names[i]=e.target.value; unsample(); renderHeader(); save(); });
 
 /* ---------- game entry ---------- */
@@ -480,7 +488,7 @@ function renderTotal(){
   const n=M(), r=S.rules;
   const tot=Array(n).fill(0), rk=[...Array(n)].map(()=>Array(N()).fill(0)), outs=Array(n).fill(0);
   S.games.forEach(g=>{ const c=calc(g); c.score.forEach((s,i)=>{ if(i>=n) return; if(s==null){ outs[i]++; return; } tot[i]+=s; if(c.rank[i]!=null) rk[i][c.rank[i]]++; }); });
-  if(!S.chips||S.chips.length!==n) S.chips=idSeat(n).map(i=>S.chips&&S.chips[i]!=null?S.chips[i]:'');
+  if(!S.chips) S.chips=[]; while(S.chips.length<n) S.chips.push('');  // 人数を減らしても後ろの人の枚数は残しておく
   const chipPt=idSeat(n).map(i=>fix((chipOf(i)-r.chipInit)*r.chipPt));
   const all=tot.map((t,i)=>fix(t+chipPt[i]));
   // 入力中・長押し中は欄を作り直さない（表示と値がずれないように）
