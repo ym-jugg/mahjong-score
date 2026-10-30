@@ -70,8 +70,20 @@ else {
   if(act&&S&&!S.cloud) S.cloud={id:act,name:''};
 }
 normalize();
+// 共有する項目ごとに「最後に変えた時刻」を記録する（チップは1人ずつ）。
+// 共有の卓では、サーバーの内容と端末の内容のうち新しいほうを項目ごとに採用するので、
+// 古い内容を持った端末や、送る前に閉じた変更でチップなどが巻き戻らない。
+const SHARED_KEYS=['rules','names','members','seat','fee','archives'];
+function stampChanges(){
+  const now=Date.now(); S.ts=S.ts||{}; S.ts.chips=S.ts.chips||[]; const lk=S.lastKeys;
+  SHARED_KEYS.forEach(k=>{ const c=canon(S[k]); if(lk&&lk[k]!==undefined&&lk[k]!==c) S.ts[k]=now; });
+  (S.chips||[]).forEach((v,i)=>{ const c=canon(v); if(lk&&lk.chips&&lk.chips[i]!==undefined&&lk.chips[i]!==c) S.ts.chips[i]=now; });
+  syncKeys();
+}
+function syncKeys(){ const o={}; SHARED_KEYS.forEach(k=>o[k]=canon(S[k])); o.chips=(S.chips||[]).map(canon); S.lastKeys=o; }
 function save(){
   if(RO) return;
+  if(S.cloud) stampChanges();
   lsSet(S.cloud?tKey(S.cloud.id):KEY,JSON.stringify(S));
   if(S.cloud) Sync.pushState();
 }
@@ -823,7 +835,7 @@ function uuid(){ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID()
 function canon(v){ if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
   if(v&&typeof v==='object') return '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
   return JSON.stringify(v===undefined?null:v); }
-const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee,archives:s.archives||[]});
+const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee,archives:s.archives||[],ts:s.ts||{}});
 const Sync=(function(){
   let lastShared=null, timer=null, unsub=null, user=null, loaded=false, msg='', members=[], tables=null, busy=false;
   const pk=()=>tKey(S.cloud.id)+':pending';
@@ -862,10 +874,18 @@ const Sync=(function(){
     if(!S.cloud||row.id!==S.cloud.id) return;
     Object.assign(S.cloud,{name:row.name,invite:row.invite_token,viewTok:row.view_token,owner:row.created_by});
     const st=row.state||{};
-    if(st.rules&&canon(sharedOf(st))!==lastShared&&!S.cloud.dirty){
-      Object.assign(S,{rules:st.rules,names:(st.names||[]).slice(),members:st.members,chips:(st.chips||[]).slice(),seat:st.seat,fee:st.fee||{total:0,mode:'equal'},archives:(st.archives||[]).slice()});
-      normalize(); lastShared=canon(sharedOf(S));
-    }
+    if(!st.rules) return;
+    // 項目ごとに新しいほうを採用（同じ時刻ならサーバー側）
+    if(S.lastKeys) stampChanges();  // 端末側でまだ記録していない変更があれば先に時刻をつける
+    const lt=S.ts||{}, rt=st.ts||{}; let localNewer=false;
+    S.ts=Object.assign({},lt,{chips:(lt.chips||[]).slice()});
+    SHARED_KEYS.forEach(k=>{ if(st[k]===undefined) return;
+      if((rt[k]||0)>=(lt[k]||0)){ S[k]=clone(st[k]); S.ts[k]=rt[k]||0; } else localNewer=true; });
+    const rc=st.chips||[], n=Math.max(rc.length,(S.chips||[]).length); S.chips=(S.chips||[]).slice();
+    for(let i=0;i<n;i++){ const r=(rt.chips||[])[i]||0, l=(lt.chips||[])[i]||0;
+      if(r>=l){ S.chips[i]=rc[i]===undefined?'':rc[i]; S.ts.chips[i]=r; } else localNewer=true; }
+    normalize(); syncKeys();
+    if(localNewer){ lastShared=null; pushState(); } else lastShared=canon(sharedOf(S));
   }
   function applyGame(row){
     if(!S.cloud||row.table_id&&row.table_id!==S.cloud.id) return;
@@ -879,7 +899,7 @@ const Sync=(function(){
     if(!r.table){ msg='この卓は見つからないか、参加していません'; toLocal(); return; }
     if(S.cloud&&S.cloud.id!==id) return;
     const pend=pending();
-    applyTable(Object.assign({},r.table,{state:(S.cloud.dirty?{}:r.table.state)}));
+    applyTable(r.table);
     S.games=r.games.map(x=>Object.assign({},x.data,{id:x.id}));
     // まだ送れていない自分の記録は残す
     pend.forEach(o=>{ if(o.op==='add'&&!S.games.some(g=>g.id===o.id)) S.games.push(Object.assign({},o.data,{id:o.id})); if(o.op==='del') S.games=S.games.filter(g=>g.id!==o.id); });
