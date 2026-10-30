@@ -1033,7 +1033,7 @@ function evalSession(st){
     const t=computeTotals();
     const games=S.games.map(g=>{ const c=calc(g);
       return idSeat(t.n).map(i=>(g.seat&&g.seat[i]>=0&&g.pts[i]!=null)?{rank:c.rank[i],n:c.order.length,pt:c.score[i],raw:g.pts[i],tobi:c.tobi.some(([p])=>p===i)}:null); });
-    return {n:t.n,games,pt:t.all,fin:t.fin,fee:t.fee};
+    return {n:t.n,games,pt:t.all,gpt:t.tot.map(fix),chipN:idSeat(t.n).map(i=>chipOf(i)-S.rules.chipInit),chipPt:t.chipPt,fin:t.fin,fee:t.fee};
   }finally{ S=saved; }
 }
 function renderStats(){
@@ -1047,7 +1047,7 @@ function renderStats(){
     const gs=sess.flatMap(s=>s.games.map(g=>g[i]).filter(Boolean)), k=gs.length;
     const fin=sess.reduce((a,s)=>a+(s.fin[i]||0)+(statsF.fee?0:(s.fee[i]||0)),0);
     const cnt=[0,1,2,3].map(r=>gs.filter(g=>g.rank===r).length);
-    return {i,name:nameOf(i),color:SERIES[i],k,fin,pt:fix(sess.reduce((a,s)=>a+(s.pt[i]||0),0)),cnt,
+    return {i,name:nameOf(i),color:SERIES[i],k,fin,pt:fix(sess.reduce((a,s)=>a+(s.pt[i]||0),0)),gpt:fix(sess.reduce((a,s)=>a+(s.gpt[i]||0),0)),chipN:sess.reduce((a,s)=>a+(s.chipN[i]||0),0),chipPt:fix(sess.reduce((a,s)=>a+(s.chipPt[i]||0),0)),cnt,
       top:k?cnt[0]/k:0, ren:k?(cnt[0]+cnt[1])/k:0, avoid:k?gs.filter(g=>g.rank!==g.n-1).length/k:0,
       avg:k?gs.reduce((a,g)=>a+g.rank+1,0)/k:0, tobi:k?gs.filter(g=>g.tobi).length/k:0, raw:k?Math.round(gs.reduce((a,g)=>a+g.raw,0)/k):0};
   }).filter(m=>m.k);
@@ -1056,7 +1056,9 @@ function renderStats(){
   // 指標ごとに一番いい人を太字に
   const rows=[
     ['収支<small>円</small>',m=>m.fin,m=>`<span class="${cls(m.fin)}">${fmtYen(m.fin).replace('円','')}</span>`,1],
-    ['ポイント',m=>m.pt,m=>`<span class="${cls(m.pt)}">${fmtPt(m.pt)}</span>`,1],
+    ['ポイント<small>合計</small>',m=>m.pt,m=>`<span class="${cls(m.pt)}">${fmtPt(m.pt)}</span>`,1],
+    ['点数<small>半荘のpt</small>',m=>m.gpt,m=>`<span class="${cls(m.gpt)}">${fmtPt(m.gpt)}</span>`,1],
+    ['チップ<small>枚数（pt）</small>',m=>m.chipN,m=>`<span class="${cls(m.chipN)}">${m.chipN>0?'+':m.chipN<0?'−':'±'}${Math.abs(m.chipN)}枚</span><small class="sub2">${fmtPt(m.chipPt)}</small>`,1],
     ['半荘数',null,m=>m.k+'回'],
     ['平均着順',m=>m.avg,m=>m.avg.toFixed(2),-1],
     ['トップ率',m=>m.top,m=>pc(m.top),1],
