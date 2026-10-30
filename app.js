@@ -205,13 +205,28 @@ function renderRules(){
   $('tobiHint').textContent=`飛んだ人が−${fix(Number(r.tobiPt)||0)}pt（${fmtYen(-yen(Number(r.tobiPt)||0))}）、飛ばした人が+${fix(Number(r.tobiPt)||0)}pt。`;
 }
 function bindSeg(el,fn){ el.addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ fn(b.dataset.v); update(); } }); }
+// 4人麻雀⇔3人麻雀：計算のしかたが変わるので、記録があるときは「過去の精算」に保存してから切り替える
+let playersTo=null;
 bindSeg($('segPlayers'),v=>{
-  v=Number(v); if(v===N()) return;
+  v=Number(v); if(v===N()){ $('playersConfirm').hidden=true; return; }
+  if(S.games.length&&!S.sample){ playersTo=v;
+    $('playersMsg').textContent=`記録が${S.games.length}半荘あります。${v}人麻雀に切り替えるには、今の記録とチップを「過去の精算」に保存して、新しく始めます。`;
+    $('playersConfirm').hidden=false; return; }
+  switchPlayers(v);
+});
+$('playersNo').addEventListener('click',()=>{ playersTo=null; $('playersConfirm').hidden=true; });
+$('playersYes').addEventListener('click',async()=>{
+  const v=playersTo; if(!v) return; $('playersYes').disabled=true;
+  try{ const a=await archiveCurrent(); clearCurrent(); switchPlayers(v); arcMsg=a?`${fmtDT(a.at)}の精算を「過去の精算」に保存しました`:''; $('playersConfirm').hidden=true; playersTo=null; update(); }
+  catch(e){ $('playersMsg').textContent='保存できませんでした（通信を確認してください）。記録はそのまま残っています'; }
+  $('playersYes').disabled=false;
+});
+function switchPlayers(v){
   const k=S.rules; S.rules=Object.assign(defaults(v),{rate:k.rate,round:k.round,tie:k.tie,chipInit:k.chipInit,chipPt:k.chipPt,kuitan:k.kuitan,atozuke:k.atozuke});
   // メンバーの人数：名前が入っている人数に合わせる（4人麻雀→3人麻雀で名前が3人分なら3人に）
   const filled=S.names.slice(0,6).reduce((m,x,i)=>x&&x.trim()?i+1:m,0);
-  S.members=Math.max(v,v<4?filled:Math.max(S.members,filled)); S.games=[]; S.chips=[]; S.draft={}; S.seat=defaultSeat(); unsample();
-});
+  S.members=Math.max(v,v<4?filled:Math.max(S.members,filled)); S.games=[]; S.draft={}; S.seat=defaultSeat(); unsample();
+}
 bindSeg($('segRate'),v=>{ if(v==='custom'){ S.rules.rateCustom=true; setTimeout(()=>$('inRateYen').focus(),0); } else { S.rules.rateCustom=false; S.rules.rate=v; } });
 $('inRateYen').addEventListener('input',e=>{ const v=parseFloat(e.target.value.replace(/[^0-9.]/g,'')); if(v>0){ S.rules.rate=String(Math.round(v*10)/1000); update(); } });
 bindSeg($('segRound'),v=>{S.rules.round=v;});

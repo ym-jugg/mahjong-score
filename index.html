@@ -16,8 +16,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<script src="move.js?v=48"></script>
-<link rel="stylesheet" href="style.css?v=48">
+<script src="move.js?v=49"></script>
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 <div class="wrap">
@@ -162,6 +162,7 @@
       <div class="panel">
         <div class="row"><span class="lbl">人数</span>
           <div class="seg" id="segPlayers"><button type="button" data-v="4">4人麻雀</button><button type="button" data-v="3">3人麻雀</button></div>
+          <div class="confirm" id="playersConfirm" hidden><span id="playersMsg"></span><button type="button" class="btn" id="playersYes">保存して切り替える</button><button type="button" class="btn ghost" id="playersNo">やめる</button></div>
         </div>
         <div class="row"><span class="lbl">レート</span>
           <div class="seg" id="segRate"><button type="button" data-v="0.5">0.5<small>テンゴ</small></button><button type="button" data-v="0.75">0.75<small>テンナナゴ</small></button><button type="button" data-v="1">1<small>テンピン</small></button><button type="button" data-v="2">2<small>テンリャン</small></button><button type="button" data-v="custom">その他</button></div>
@@ -270,10 +271,10 @@
     </div>
   </div>
 </dialog>
-<script src="config.js?v=48"></script>
-<script src="cloud.js?v=48"></script>
-<script src="ocr.js?v=48"></script>
-<script src="app.js?v=48"></script>
+<script src="config.js?v=49"></script>
+<script src="cloud.js?v=49"></script>
+<script src="ocr.js?v=49"></script>
+<script src="app.js?v=49"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>
