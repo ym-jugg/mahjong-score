@@ -1,6 +1,6 @@
 {
-  "name": "麻雀スコア帳",
-  "short_name": "スコア帳",
+  "name": "雀ショット",
+  "short_name": "雀ショット",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
