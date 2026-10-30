@@ -576,17 +576,18 @@ function renderArchives(){
     const open=arcOpen===a.id, conf=arcConfirm&&arcConfirm.id===a.id?arcConfirm.kind:null;
     return `<div class="arc"><div class="trow"><div><b>${fmtDT(a.at)}</b>　${a.games}半荘<div class="hint">1位 ${esc(top.name)} ${fmtYen(top.fin)}</div></div>
       <div class="actions" style="margin:0"><button type="button" class="btn ghost" data-arc-view="${a.id}">${open?'閉じる':'見る'}</button><button type="button" class="btn ghost ro-hide" data-arc-restore="${a.id}">戻す</button></div></div>
+      ${conf==='restore'?`<div class="confirm arc-confirm">この精算を戻しますか？${S.games.length?'今の記録は「過去の精算」に保存してから戻します。':''}<button type="button" class="btn" style="width:auto" data-arc-restore-yes="${a.id}">戻す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
       ${open?`<div class="tw"><table><thead><tr><th>名前<small style="display:block;font-weight:500">着順</small></th><th>合計pt</th><th>金額${a.feeTotal?'<small style="display:block;font-weight:500">場代込み</small>':''}</th></tr></thead><tbody>${a.rows.map(r=>`<tr><td class="nm">${esc(r.name)}<small>${r.ranks}</small></td><td class="${cls(r.pt)}">${fmtPt(r.pt)}</td><td class="yen ${cls(r.fin)}">${fmtYen(r.fin)}${r.fee?`<small class="feeNote">場代 −${r.fee.toLocaleString('ja-JP')}</small>`:''}</td></tr>`).join('')}</tbody></table></div>
         <div class="ro-hide" style="margin-top:6px"><button type="button" class="btn danger" data-arc-del="${a.id}">この記録を完全に消す</button></div>`:''}
-      ${conf==='restore'?`<div class="confirm">この精算を戻しますか？${S.games.length?'今の記録は「過去の精算」に保存してから戻します。':''}<button type="button" class="btn" style="width:auto" data-arc-restore-yes="${a.id}">戻す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
-      ${conf==='del'?`<div class="confirm">完全に消すと戻せません。消しますか？<button type="button" class="btn danger" data-arc-del-yes="${a.id}">消す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
+      ${conf==='del'?`<div class="confirm arc-confirm">完全に消すと戻せません。消しますか？<button type="button" class="btn danger" data-arc-del-yes="${a.id}">消す</button><button type="button" class="btn ghost" data-arc-no="1">やめる</button></div>`:''}
     </div>`; }).join('');
 }
 $('archiveList').addEventListener('click',async e=>{
   const t=e.target.closest('button'); if(!t) return; const d=t.dataset; arcMsg='';
   if(d.arcView){ arcOpen=arcOpen===d.arcView?null:d.arcView; arcConfirm=null; }
-  if(d.arcRestore){ arcConfirm={id:d.arcRestore,kind:'restore'}; }
+  if(d.arcRestore){ arcConfirm=arcConfirm&&arcConfirm.id===d.arcRestore&&arcConfirm.kind==='restore'?null:{id:d.arcRestore,kind:'restore'}; }
   if(d.arcDel){ arcConfirm={id:d.arcDel,kind:'del'}; }
+  if(d.arcRestore||d.arcDel) setTimeout(()=>{ const c=$('archiveList').querySelector('.arc-confirm'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'}); },0);
   if(d.arcNo){ arcConfirm=null; }
   if(d.arcDelYes){ S.archives=S.archives.filter(a=>a.id!==d.arcDelYes); arcConfirm=null; arcOpen=null; save(); }
   if(d.arcRestoreYes){
@@ -597,7 +598,8 @@ $('archiveList').addEventListener('click',async e=>{
       const s=clone(a.snap);
       Object.assign(S,{rules:s.rules,names:s.names,members:s.members,chips:s.chips,fee:s.fee,seat:s.seat,games:s.games,draft:{}});
       S.archives=S.archives.filter(x=>x.id!==a.id); normalize(); arcConfirm=null; arcOpen=null;
-      arcMsg=`${fmtDT(a.at)}の精算を戻しました`; update();
+      arcMsg=`${fmtDT(a.at)}の精算を戻しました。対局タブで続きを記録できます`; update();
+      setTimeout(()=>{ const b=$('archiveList'); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); },0);
     }catch(err){ arcMsg='戻せませんでした（通信を確認してください）'; }
   }
   renderArchives();

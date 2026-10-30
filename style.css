@@ -358,3 +358,4 @@ table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-wei
 
 .savestate{margin-top:8px;font-size:12px;font-weight:700;text-align:right}
 .savestate.ok{color:var(--felt)} .savestate.wait{color:var(--muted)}
+.arc-confirm{animation:arcIn .25s ease-out;border:2px solid var(--felt)}@keyframes arcIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
