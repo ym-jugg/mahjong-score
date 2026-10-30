@@ -817,11 +817,18 @@ const Sync=(function(){
   function pushState(){
     if(!S.cloud||RO||!user) return;
     if(canon(sharedOf(S))===lastShared) return;
+    // まだ送れていない変更があることを先に端末へ記録しておく（送る前にアプリを閉じても、次に開いたとき端末側の内容を優先して送り直す）
+    if(!S.cloud.dirty){ S.cloud.dirty=true; lsSet(tKey(S.cloud.id),JSON.stringify(S)); }
     clearTimeout(timer);
-    timer=setTimeout(async()=>{ const snap=sharedOf(S), c=canon(snap);
-      try{ await Cloud.saveState(S.cloud.id,snap); lastShared=c; S.cloud.dirty=false; }catch(e){ S.cloud.dirty=true; }
-      renderHeader(); },700);
+    timer=setTimeout(sendState,700);
   }
+  async function sendState(){ timer=null; if(!S.cloud||!user) return; const snap=sharedOf(S), c=canon(snap);
+    try{ await Cloud.saveState(S.cloud.id,snap); lastShared=c; if(canon(sharedOf(S))===c){ S.cloud.dirty=false; lsSet(tKey(S.cloud.id),JSON.stringify(S)); } }catch(e){ S.cloud.dirty=true; }
+    renderHeader(); }
+  // アプリを閉じる・切り替えるときは、待たずにすぐ送る
+  const sendNow=()=>{ if(timer){ clearTimeout(timer); sendState(); } };
+  addEventListener('pagehide',sendNow);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') sendNow(); });
   async function flush(){
     if(!S.cloud||!user) return;
     const rest=[];
