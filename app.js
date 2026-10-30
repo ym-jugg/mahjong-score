@@ -974,6 +974,7 @@ function copyText(txt,btn){
   else selectFallback(btn);
 }
 function selectFallback(btn){ const inp=btn.parentElement.querySelector('input'); if(inp){ inp.focus(); inp.select(); } }
+let newTblOpen=false;
 function renderShare(){
   const box=$('shareBox'); if(!box||!$('shareDlg').open) return;
   const u=Sync.user, m=Sync.msg?`<div class="check ${/参加しました|作りました|作り直しました/.test(Sync.msg)?'ok':'ng'}" style="margin:0">${esc(Sync.msg)}</div>`:'';
@@ -1009,7 +1010,13 @@ function renderShare(){
         <span class="hint">今のルール・メンバー・記録をもとに共有の卓を作れます。この端末のデータはそのまま残ります。${S.sample?'（サンプルの記録とメンバーは入れずに作ります）':''}</span></div>
       <div class="row"><div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="newTableName" placeholder="卓の名前（例：金曜の会）" maxlength="30" aria-label="新しい卓の名前"></label><button type="button" class="btn" style="width:auto" data-act="create" ${Sync.busy?'disabled':''}>共有の卓を作る</button></div></div></div>`;
   box.innerHTML=`${m}${cur}
-    <div class="sec"><h2 style="margin-top:6px">参加している卓</h2><div class="panel">${list}</div></div>
+    <div class="sec"><h2 style="margin-top:6px">参加している卓</h2><div class="panel">${list}
+      ${c?`<div class="newtbl">${newTblOpen?`<div class="row"><span class="lbl">新しい共有の卓</span>
+          <div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="newTableName2" placeholder="卓の名前（例：土曜の会）" maxlength="30" aria-label="新しい卓の名前"></label><button type="button" class="btn" style="width:auto" data-act="createNew" ${Sync.busy?'disabled':''}>作る</button></div>
+          <span class="hint">今のルールを引き継いで、メンバー・記録・チップは空の卓を作ります。今の卓「${esc(c.name||'')}」はそのまま残ります。</span>
+          <button type="button" class="btn ghost" style="width:auto;justify-self:start" data-act="newTblCancel">やめる</button></div>`
+        :`<button type="button" class="titem-add" data-act="newTbl">＋ 新しい共有の卓を作る</button>`}</div>`:''}
+    </div></div>
     <div class="panel"><div class="toggle"><span class="hint">${esc(u.email||'')} でログイン中</span><button type="button" class="btn ghost" data-act="logout">ログアウト</button></div></div>`;
   fillQR();
 }
@@ -1039,6 +1046,19 @@ $('shareBox').addEventListener('click',async e=>{
     if(act==='leave'){ $('leaveConfirm').hidden=false; return; }
     if(act==='leaveNo'){ $('leaveConfirm').hidden=true; return; }
     if(act==='leaveYes'){ const id=S.cloud.id; await Cloud.leave(id,Sync.user.id); lsSet(tKey(id),null); Sync.toLocal(); Sync.refreshTables(); show('share'); }
+    if(act==='newTbl'){ newTblOpen=true; renderShare(); setTimeout(()=>{ const f=$('newTableName2'); if(f){ f.scrollIntoView({behavior:'smooth',block:'center'}); f.focus({preventScroll:true}); } },0); return; }
+    if(act==='newTblCancel'){ newTblOpen=false; renderShare(); return; }
+    if(act==='createNew'){
+      // 今の卓のルールだけ引き継いで、メンバー・記録・チップは空で新しい卓を作り、そちらに切り替える
+      if(Sync.busy) return;
+      const name=($('newTableName2').value||'').trim()||'麻雀卓';
+      Sync.busy=true; renderShare();
+      const n=S.rules.players, base={rules:clone(S.rules),names:['','','','','',''],members:n,chips:[],seat:idSeat(n).map(i=>i),fee:{total:0,mode:(S.fee&&S.fee.mode)||'equal'},archives:[],ts:{}};
+      const t=await Cloud.createTable(name,sharedOf(base),[],Sync.displayName());
+      Sync.busy=false; newTblOpen=false; Sync.msg='新しい共有の卓を作りました。メンバーの名前を入れて始めてください';
+      await Sync.switchTo(t.id,t.name); Sync.refreshTables();
+      $('shareDlg').close(); openSettings(); setTimeout(()=>{ const f=$('name0'); if(f) f.focus(); },100);
+    }
     if(act==='create'){
       if(Sync.busy) return;
       const name=($('newTableName').value||'').trim()||'麻雀卓';
