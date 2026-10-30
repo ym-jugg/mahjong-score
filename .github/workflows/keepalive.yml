@@ -1,0 +1,21 @@
+# Supabase 無料プランは1週間ほどアクセスがないと自動で一時停止するため、
+# 3日おきに軽いアクセス（閲覧用の関数を存在しないトークンで呼ぶだけ。データは読み書きしない）をする。
+name: Supabaseの休止を防ぐ
+on:
+  schedule:
+    - cron: '17 3 */3 * *'   # 3日おき 12:17（日本時間）
+  workflow_dispatch:          # Actions 画面から手動でも実行できる
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase にアクセス
+        env:
+          # config.js と同じ公開用の値（公開して大丈夫な鍵）
+          SB_URL: https://vnixeqkqgesxylbfcigy.supabase.co
+          SB_KEY: sb_publishable_Oxf-M9vvcsuNMeJJYWKFtw_0lDoF0bs
+        run: |
+          code=$(curl -sS -o out.txt -w '%{http_code}' -X POST "$SB_URL/rest/v1/rpc/mj_view_table" \
+            -H "apikey: $SB_KEY" -H 'Content-Type: application/json' -d '{"p_token":"keepalive"}')
+          echo "HTTP $code"; cat out.txt; echo
+          test "$code" = 200
