@@ -237,7 +237,7 @@ function renderPlayers(){
   $('memHint').textContent=(M()>N()?`${N()}人で打ち、毎回${M()-N()}人が抜け番になります。抜け番は半荘ごとに対局画面で選びます。`:'全員が毎回卓に入ります。')
     +(used>N()?`（記録に${used}人目まで入っているので、それより少なくはできません）`:'');
   if($('seatList').contains(document.activeElement)) return;
-  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="num-b">${i+1}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
+  $('seatList').innerHTML=names().map((nm,i)=>`<div class="seat"><span class="tile sm" aria-label="メンバー${i+1}">${'一二三四五六'[i]}</span><label class="field"><input class="txt" id="name${i}" data-i="${i}" value="${esc(nm)}" placeholder="メンバー${i+1}の名前" maxlength="12" aria-label="メンバー${i+1}の名前"></label></div>`).join('');
 }
 $('segMembers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||b.disabled) return;
   const k=Number(b.dataset.v); if(k===M()) return;
