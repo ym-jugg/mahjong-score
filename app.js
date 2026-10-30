@@ -1,4 +1,5 @@
 (function(){
+if(window.__moving) return;  // アドレスの引っ越し中（move.js）は起動しない
 const KEY='jansou-scorebook-v1';
 const WINDS=['東','南','西','北'];
 const RANKK=['一','二','三','四'];
