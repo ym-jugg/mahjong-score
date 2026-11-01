@@ -188,7 +188,9 @@ function renderHeader(){ renderSaveState();
   const cs=$('cloudState');
   if(RO){ cs.hidden=false; cs.className='cloudbar ro'; cs.innerHTML=`<b>閲覧専用</b>${S.viewName?`「${esc(S.viewName)}」`:''}・自動で更新されます${S.viewErr?`<span class="err">${esc(S.viewErr)}</span>`:''}`; }
   else if(S.cloud){ const p=Sync.pendingCount(); cs.hidden=false; cs.className='cloudbar'+(p?' warn':'');
-    cs.innerHTML=`<b>共有中</b>「${esc(S.cloud.name||'卓')}」・${p?`未送信${p}件（通信が戻ると送ります）`:(Sync.online()?'同期しています':'オフライン')}`; }
+    cs.innerHTML=`<b>共有中</b>「${esc(S.cloud.name||'卓')}」・${/参加しました/.test(Sync.msg)?'参加しました':p?`未送信${p}件（通信が戻ると送ります）`:(Sync.online()?'同期しています':'オフライン')}`; }
+  else if(Cloud.configured&&lsGet(KEY+':join')){ cs.hidden=false; cs.className='cloudbar invite';
+    cs.innerHTML=`<span><b>招待されています</b>・Googleでログインすると卓に参加できます</span><button type="button" class="btn" id="joinLogin">ログインして参加</button>`; }
   else cs.hidden=true;
 }
 
@@ -924,7 +926,9 @@ const Sync=(function(){
     lsSet(ACTIVE,id);
     S=loadJSON(tKey(id))||blankTable(id,name); if(!S.cloud) S.cloud={id,name:name||''};
     normalize(); lastShared=null; members=[];
-    show('share'); update();
+    // 共有画面から切り替えたときは共有画面のまま、招待リンクから参加したときなどは対局画面へ
+    if(!$('shareDlg').open) show(S.view&&!['share','rules','players'].includes(S.view)?S.view:'game');
+    update();
     return open(id).catch(e=>{ msg=e.message; renderShare(); });
   }
   function toLocal(){
@@ -935,7 +939,7 @@ const Sync=(function(){
   async function afterLogin(){
     const jt=lsGet(KEY+':join');
     if(jt){ lsSet(KEY+':join',null);
-      try{ const tid=await Cloud.join(jt,displayName()); msg='卓に参加しました'; await switchTo(tid); }
+      try{ const tid=await Cloud.join(jt,displayName()); msg='卓に参加しました'; await switchTo(tid); setTimeout(()=>{ if(msg==='卓に参加しました'){ msg=''; renderHeader(); } },6000); }
       catch(e){ msg=e.message; }
     }
     if(S.cloud) open(S.cloud.id).catch(e=>{ msg=e.message; renderShare(); });
@@ -1184,6 +1188,8 @@ $('statsBox').addEventListener('click',e=>{
 
 /* ---------- ログイン・共有、プライバシーポリシー（モーダル） ---------- */
 function openShare(){ const d=$('shareDlg'); if(!d.open) d.showModal(); Sync.start(); renderShare(); }
+$('cloudState').addEventListener('click',async e=>{ if(!e.target.closest('#joinLogin')) return;
+  try{ await Sync.start(); await Cloud.signIn(); }catch(err){ Sync.msg=err.message; openShare(); } });
 $('shareClose').addEventListener('click',()=>{ blur(); $('shareDlg').close(); });
 $('shareDlg').addEventListener('close',()=>update());
 $('privacyClose').addEventListener('click',()=>$('privacyDlg').close());
@@ -1238,10 +1244,11 @@ menu.addEventListener('click',e=>{
 });
 
 function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('v-stats').hidden) renderStats(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
-if(RO){ document.body.classList.add('ro'); show('total'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
+if(RO){ document.body.classList.add('ro'); show('game'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
 else {
-  const jt=params.get('join'); if(jt&&Cloud.configured){ lsSet(KEY+':join',jt); S.view='share'; }
-  show(S.view==='share'&&!Cloud.configured?'game':(S.view||'game')); update();
+  // 招待リンクは対局画面を開き、ログインしていなければ上の帯からログインしてもらう
+  const jt=params.get('join'); if(jt&&Cloud.configured){ lsSet(KEY+':join',jt); }
+  show(S.view&&!['share','rules','players'].includes(S.view)?S.view:'game'); update();
   Sync.init();
 }
 })();

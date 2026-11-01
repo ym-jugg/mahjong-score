@@ -365,3 +365,4 @@ table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-wei
 .arc-confirm.del{border-color:var(--shu);background:var(--shu-soft)}@keyframes arcIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .newtbl{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .titem-add{width:100%;border:1px dashed var(--felt);background:transparent;color:var(--felt);border-radius:12px;padding:12px;font:inherit;font-weight:700;font-size:15px}
+.cloudbar.invite{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.cloudbar.invite .btn{width:auto;padding:8px 14px;font-size:14px}
