@@ -16,8 +16,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<script src="move.js?v=58"></script>
-<link rel="stylesheet" href="style.css?v=58">
+<script src="move.js?v=59"></script>
+<link rel="stylesheet" href="style.css?v=59">
 </head>
 <body>
 <div class="wrap">
@@ -256,8 +256,14 @@
   <div class="live-ui">
     <p class="live-msg" id="liveMsg"></p>
     <p class="live-read" id="liveRead"></p>
+    <div class="live-denied" id="liveDenied" hidden>
+      <p class="live-dh">カメラの使用が許可されていません</p>
+      <ol class="live-steps" id="liveSteps"></ol>
+      <button type="button" class="btn ghost" id="liveRetry">許可したので、もう一度試す</button>
+    </div>
+    <label class="btn" for="camIn" id="livePhoto" hidden>写真を撮って読み取る</label>
+    <p class="live-note" id="livePhotoNote" hidden>スマホのカメラで写真を撮って読み取ります（許可の設定は不要です）</p>
     <div class="live-btns"><button type="button" class="btn" id="liveShoot">この映像で読み取る</button><button type="button" class="btn ghost" id="liveClose">閉じる</button></div>
-    <label class="btn" for="camIn" id="livePhoto" hidden>写真を撮る</label>
     <div class="live-links"><label class="live-pick" for="pickIn">写真・動画から読み取る</label></div>
   </div>
 </dialog>
@@ -272,10 +278,10 @@
     </div>
   </div>
 </dialog>
-<script src="config.js?v=58"></script>
-<script src="cloud.js?v=58"></script>
-<script src="ocr.js?v=58"></script>
-<script src="app.js?v=58"></script>
+<script src="config.js?v=59"></script>
+<script src="cloud.js?v=59"></script>
+<script src="ocr.js?v=59"></script>
+<script src="app.js?v=59"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>

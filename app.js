@@ -663,24 +663,44 @@ function stackCanvas(w,h){ const sc=Math.min(1,1600/w); const cv=document.create
 function stackBegin(cv){ const cx=cv.getContext('2d',{willReadFrequently:true}); cx.globalCompositeOperation='source-over'; cx.fillStyle='#000'; cx.fillRect(0,0,cv.width,cv.height); cx.globalCompositeOperation='lighten'; return cx; }
 const readKey=a=>a.ks.map(k=>a.vals[k].v).join(',');
 const Live=(()=>{
-  let stream=null, run=0, manual=false, ic=null, camNote='';
+  let stream=null, run=0, manual=false, ic=null, camNote='', tries=0;
   const dlg=$('liveCam'), video=$('liveVideo');
   const nextFrame=()=>new Promise(r=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(()=>r()):requestAnimationFrame(()=>r()));
   const msg=(t,read)=>{ $('liveMsg').textContent=t; if(read!=null) $('liveRead').innerHTML=read; };
   function stop(){ run++; if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; video.srcObject=null; }
   async function open(){
     if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)) return false;
-    manual=false; msg('カメラを起動しています…',''); $('livePhoto').hidden=true; $('liveShoot').hidden=false;
-    dlg.showModal();
+    tries=0; dlg.showModal(); return start();
+  }
+  // カメラの許可がないときの案内。Webアプリからは設定画面を直接開けないため、端末と開き方に合わせた手順を出す
+  function permSteps(){
+    const ua=navigator.userAgent, ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+    const home=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+    if(ios&&home) return ['iPhoneの「設定」を開く','「アプリ」→「Safari」→「カメラ」を「許可」にする（古いiOSは「設定」→「Safari」→「カメラ」）','この画面に戻って下の「もう一度試す」を押す'];
+    if(ios) return ['アドレスバーの「ぁあ」（または「…」）をタップ','「Webサイトの設定」→「カメラ」を「許可」にする','下の「もう一度試す」を押す'];
+    if(home) return ['ホーム画面の雀ショットのアイコンを長押し →「アプリ情報」','「権限」→「カメラ」を「許可」にする','この画面に戻って下の「もう一度試す」を押す'];
+    return ['アドレスバー左のアイコンをタップ','「権限」または「サイトの設定」→「カメラ」を「許可」にする','下の「もう一度試す」を押す'];
+  }
+  async function start(){
+    manual=false; msg('カメラを起動しています…','');
+    $('livePhoto').hidden=true; $('livePhotoNote').hidden=true; $('liveDenied').hidden=true; $('liveShoot').hidden=false; dlg.classList.remove('denied');
     try{ stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}}); }
     catch(e){
-      // 許可されなかったときなど：その場で写真撮影に切り替えられるようにする（タップ操作から開く必要があるため自動では開かない）
-      msg('カメラを使えませんでした。ブラウザの設定でカメラを許可するか、下のボタンから写真を撮ってください。','');
-      $('livePhoto').hidden=false; $('liveShoot').hidden=true; return true; }
+      // 使えないときは、その場で写真撮影に切り替えられるようにする（タップ操作から開く必要があるため自動では開かない）
+      tries++; $('liveShoot').hidden=true; $('livePhoto').hidden=false; $('livePhotoNote').hidden=false;
+      if(e&&(e.name==='NotAllowedError'||e.name==='SecurityError')){
+        dlg.classList.add('denied'); $('liveDenied').hidden=false;
+        $('liveSteps').innerHTML=permSteps().map(t=>`<li>${esc(t)}</li>`).join('');
+        // 一度断ると、同じページのままでは許可を聞き直さないことがある → 2回目からは再読み込みで試す
+        $('liveRetry').textContent=tries>1?'ページを再読み込みして試す':'許可したので、もう一度試す';
+        msg(tries>1?'まだカメラを使えません。設定を変えたあと再読み込みして、もう一度「卓の点数表示を撮影」を押してください。':'許可の設定を変えるか、下の「写真を撮って読み取る」を使ってください。','');
+      } else msg('カメラを起動できませんでした（ほかのアプリが使っている可能性があります）。下のボタンから写真を撮ってください。','');
+      return true; }
     video.srcObject=stream; try{ await video.play(); }catch(e){}
     await tuneCamera(stream.getVideoTracks()[0]);
     loop(++run); return true;
   }
+  $('liveRetry').addEventListener('click',()=>{ if(tries>1){ stop(); location.reload(); } else start(); });
   // 点滅とコマの速さが同期すると、いつも同じ桁が消えた瞬間ばかり写る。
   // 対策1：露光時間を長く（約1/30秒）して点滅をまたいで写す（対応機種のみ）
   // 対策2：写真モード（ImageCapture.takePhoto）でも撮って読む。写真はカメラアプリと同じ処理で撮られる
