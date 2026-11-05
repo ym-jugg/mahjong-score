@@ -1,6 +1,28 @@
 {
   "headers": [
-    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/(.*)\\.(js|css|html)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] }
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(js|css|html)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/_v/:tok",
+      "destination": "https://vnixeqkqgesxylbfcigy.supabase.co/rest/v1/rpc/mj_view_table?p_token=:tok&apikey=sb_publishable_Oxf-M9vvcsuNMeJJYWKFtw_0lDoF0bs"
+    }
   ]
 }
