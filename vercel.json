@@ -18,23 +18,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "query",
-          "key": "view",
-          "value": "(?<tok>[0-9a-f]+)"
-        },
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*[Cc]laude.*"
-        }
-      ],
-      "destination": "https://vnixeqkqgesxylbfcigy.supabase.co/rest/v1/rpc/mj_view_table?p_token=:tok&apikey=sb_publishable_Oxf-M9vvcsuNMeJJYWKFtw_0lDoF0bs"
-    }
   ]
 }
