@@ -616,25 +616,46 @@ const roleLbl=k=>(N()===4?ROLE_LBL4:ROLE_LBL3)[k];
 const PHYS=['self','shimocha','toimen','kamicha'];
 // 撮影する人：選ばれた人が座っていなければ最初に座っている人
 function scanShooter(){ if(scan) return scan.shooter; const st=seated(); return st.includes(S.shooter)?S.shooter:st[0]; }
-// 自分から見た表示の位置 → 卓の席（東南西北の順で反時計回り）。三麻は東南西に座り北が空席
-function roleOffs(){
+// 三麻：卓の点数表示は4人分出るので、どこが空席かは写真から決める。
+//   自分以外の右・向かい・左のうち、自分と合わせて合計が「配給原点×3」になる2つが相手、残りが空席。
+//   相手は右→向かい→左の順に回って先に来る方が下家、次が上家（打つ順は反時計回り）。
+//   決まらないときは、前回の結果 → 「北が空席」の順に仮に決め、確認画面で直せる。
+let lastEmpty=null;  // {sh:撮影者, e:空席の位置(1=右,2=向かい,3=左)}
+function defaultEmpty(sh){ const w=S.seat[sh]; if(lastEmpty&&lastEmpty.sh===sh) return lastEmpty.e; return w>=0?(7-w)%4||3:3; }
+function roleOffs(e){
   if(N()===4) return {self:0,shimocha:1,toimen:2,kamicha:3};
-  const w=S.seat[scanShooter()], o={};
-  if(!(w>=0)) return {self:0,shimocha:1,kamicha:3};
-  PHYS.forEach((k,off)=>{ if((w+off)%4!==3) o[k]=off; });
+  if(e==null) e=scan&&scan.empty!=null?scan.empty:defaultEmpty(scanShooter());
+  const o={self:0}; let k=1; PHYS.forEach((r,off)=>{ if(off&&off!==e) o[r]=k++; });
   return o;
 }
 let scan=null;
 // 以前の検証用に保存していた撮影データは削除する
 try{ indexedDB.deleteDatabase('jansou-shots'); }catch(e){}
-function playerFor(role){ const off=roleOffs()[role], sh=scanShooter(); return S.seat.indexOf((S.seat[sh]+off)%4); }
+function playerFor(role){ const off=roleOffs()[role], sh=scanShooter(); return S.seat.indexOf((S.seat[sh]+off)%N()); }
 // 写真（または重ね合わせた画像）を読み取り、合計が合う候補の値を作る
 function analyzeScan(src){ return analyzeRes(SegOCR.read(src)); }
-function analyzeRes(res){
-  const vals={}, raw={}, note={}, ks=Object.keys(roleOffs()), target=S.rules.start*N();
+// 三麻の空席の位置を決める（force＝確認画面で人が選んだ位置）
+function pickEmpty(cands,force){
+  if(force!=null) return force;
+  const sh=scanShooter(), pref=[lastEmpty&&lastEmpty.sh===sh?lastEmpty.e:null,defaultEmpty(sh),1,2,3];
+  return pref.find(e=>e!=null&&cands.includes(e));
+}
+function analyzeRes(res,force){
+  const target=S.rules.start*N();
+  let empty=null, ambiguous=false, sol=null;
+  if(N()===3){
+    const ok=[1,2,3].filter(e=>(force==null||e===force)&&SegOCR.solve(res.roles,Object.keys(roleOffs(e)),target));
+    if(ok.length){ empty=pickEmpty(ok,force); ambiguous=force==null&&ok.length>1; }
+    else{
+      // 合計で決まらないとき：数字が見つからない表示が1つだけなら、そこを空席とみなす
+      const none=[1,2,3].filter(e=>{ const g=res.roles[PHYS[e]]; return !g||g.value==null; });
+      empty=force!=null?force:none.length===1?none[0]:pickEmpty([1,2,3]);
+    }
+  }
+  const vals={}, raw={}, note={}, ks=Object.keys(roleOffs(empty));
   ks.forEach(k=>{ const g=res.roles[k]; raw[k]=g?g.text:''; });
   // 合計（配給原点×人数）が合う組み合わせを探す。百点単位・十点単位の両方を試す
-  const sol=SegOCR.solve(res.roles,ks,target);
+  sol=SegOCR.solve(res.roles,ks,target);
   let filled=false;
   if(sol){
     ks.forEach(k=>{ const v=sol[k].value, g=res.roles[k];
@@ -652,10 +673,10 @@ function analyzeRes(res){
       vals[k]=ok?{v:String(v*100)}:{v:'',miss:true}; });
   }
   // 自動で確定してよいのは、全員の数字がそのまま読めて合計も合ったときだけ（補正が入ったら確認画面で人が見る）
-  return {res,vals,raw,note,ks,solved:!!sol,sure:!!sol&&!filled&&!Object.keys(note).length};
+  return {res,vals,raw,note,ks,empty,ambiguous,solved:!!sol,sure:!!sol&&!filled&&!ambiguous&&!Object.keys(note).length};
 }
 function showScan(a,mode){
-  scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:scanShooter()};
+  scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:scanShooter(),empty:a.empty,ambiguous:a.ambiguous};
   $('scanBusy').hidden=true; $('scanBox').hidden=false; renderScan(true);
   $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -736,7 +757,7 @@ const Live=(()=>{
   }
   // 読み取りは0.4秒ごと。人ごとに「はっきり読めた数字」を直近の結果から集めて多数決し、
   // 4人そろって合計が合えばすぐ確定（1回の画像で全員読めなくても、何回かに分けて読めればよい）
-  function exactReads(a){ const o={}; a.ks.forEach(k=>{ const g=a.res.roles[k];
+  function exactReads(a){ const o={}; (N()===3?PHYS:a.ks).forEach(k=>{ const g=a.res.roles[k];
     if(g&&g.value!=null&&g.digits.length>=3&&g.chars.every(c=>/[\d-]/.test(c))) o[k]=g.value; }); return o; }
   function vote(hist,ks){
     const pick={};
@@ -758,10 +779,12 @@ const Live=(()=>{
     const showRead=(ks,pick)=>{ $('liveRead').innerHTML=ks.map(k=>`<span>${roleLbl(k).replace(/（.*）/,'')} <b>${pick[k]?esc(String(pick[k].v*100)):'—'}</b>${pick[k]?' ✓':''}</span>`).join(''); };
     const consider=(a,src,mode)=>{
       hist.push(exactReads(a)); if(hist.length>12) hist.shift();
-      const pick=vote(hist,a.ks); showRead(a.ks,pick);
+      const pick=vote(hist,N()===3?PHYS:a.ks); showRead(a.ks,pick);
       if(a.sure){ accept(a,src,mode); return true; }
-      const vals=voteSolve(pick,a.ks);
-      if(vals){ accept(Object.assign({},a,{vals,note:{},raw:Object.fromEntries(a.ks.map(k=>[k,String(pick[k].v)])),solved:true,sure:true}),src,mode); return true; }
+      // 三麻は空席の位置ごとに試し、1通りだけ合計が合えば確定
+      const opts=N()===3?[1,2,3].map(e=>({e,ks:Object.keys(roleOffs(e))})).map(o=>Object.assign(o,{vals:voteSolve(pick,o.ks)})).filter(o=>o.vals):[{e:null,ks:a.ks,vals:voteSolve(pick,a.ks)}].filter(o=>o.vals);
+      if(opts.length===1){ const o=opts[0];
+        accept(Object.assign({},a,{ks:o.ks,empty:o.e,ambiguous:false,vals:o.vals,note:{},raw:Object.fromEntries(o.ks.map(k=>[k,String(pick[k].v)])),solved:true,sure:true}),src,mode); return true; }
       return false;
     };
     while(id===run){
@@ -830,6 +853,9 @@ function renderScan(redraw,rows){
   if(rows!==false){
   $('segShooter').innerHTML=seated().map(i=>`<button type="button" data-v="${i}">${esc(nameOf(i))}</button>`).join('');
   setSeg($('segShooter'),scan.shooter);
+  $('emptyWrap').hidden=N()!==3;
+  if(N()===3){ $('segEmpty').innerHTML=[[1,'右'],[2,'向かい'],[3,'左']].map(([v,l])=>`<button type="button" data-v="${v}">${l}</button>`).join(''); setSeg($('segEmpty'),scan.empty);
+    $('emptyHint').textContent=scan.ambiguous?'合計からは決めきれませんでした。空いている席の表示を確かめてください。':'合計から判定しました。違っていたら選び直してください。'; }
   if(!$('scanRows').contains(document.activeElement)){
     $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=!!v.miss;
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
@@ -866,13 +892,17 @@ $('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
 $('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur();
   // 三麻は撮影する人の席で、どの表示に相手が出るかが変わる → 読み取り結果から計算し直す
-  if(N()===3){ const a=analyzeRes(scan.res); Object.assign(scan,{vals:a.vals,raw:a.raw,note:a.note}); $('scanRows').innerHTML=''; }
+  if(N()===3) $('scanRows').innerHTML='';
   renderScan(); });
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }
 bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
   const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
+$('segEmpty').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||!scan) return;
+  const a=analyzeRes(scan.res,Number(b.dataset.v)); Object.assign(scan,{vals:a.vals,raw:a.raw,note:a.note,empty:a.empty,ambiguous:false}); blur();
+  $('scanRows').innerHTML=''; renderScan(); });
 $('scanCancel').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; });
 $('scanApply').addEventListener('click',()=>{
+  if(N()===3&&scan.empty!=null) lastEmpty={sh:scan.shooter,e:scan.empty};  // 同じ人が次に撮るときの判定に使う
   Object.keys(roleOffs()).forEach(k=>{ const p=playerFor(k), v=scan.vals[k]; if(v.v===''||v.v==='-') return; S.draft['p'+p]=String(parseInt(v.v,10)); });
   scan=null; $('scanBox').hidden=true; unsample(); blur(); renderEntry(); save();
   $('entryList').scrollIntoView({behavior:'smooth',block:'start'});
