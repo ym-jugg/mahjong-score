@@ -609,15 +609,28 @@ $('archiveList').addEventListener('click',async e=>{
 $('startFresh').addEventListener('click',()=>{ S.games=[]; S.chips=[]; S.draft={}; S.fee={total:0,mode:'equal'}; S.names=['','','','','','']; S.members=N(); S.seat=defaultSeat(); S.sample=false; show('game'); update(); openSettings(); setTimeout(()=>{const f=$('name0'); if(f) f.focus(); },50); });
 
 /* ---------- 撮影読み取り ---------- */
-const ROLE_LBL={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
-const roleOffs=()=>N()===4?{self:0,shimocha:1,toimen:2,kamicha:3}:{self:0,shimocha:1,kamicha:2};
+// 役割の名前は「卓の表示の位置」（自分・右・向かい・左）。三麻では北の席が空くので、向かいや左が相手になることがある
+const ROLE_LBL4={self:'自分（中央）',shimocha:'下家（右）',toimen:'対面（上）',kamicha:'上家（左）'};
+const ROLE_LBL3={self:'自分（中央）',shimocha:'右の表示',toimen:'向かいの表示',kamicha:'左の表示'};
+const roleLbl=k=>(N()===4?ROLE_LBL4:ROLE_LBL3)[k];
+const PHYS=['self','shimocha','toimen','kamicha'];
+// 撮影する人：選ばれた人が座っていなければ最初に座っている人
+function scanShooter(){ if(scan) return scan.shooter; const st=seated(); return st.includes(S.shooter)?S.shooter:st[0]; }
+// 自分から見た表示の位置 → 卓の席（東南西北の順で反時計回り）。三麻は東南西に座り北が空席
+function roleOffs(){
+  if(N()===4) return {self:0,shimocha:1,toimen:2,kamicha:3};
+  const w=S.seat[scanShooter()], o={};
+  if(!(w>=0)) return {self:0,shimocha:1,kamicha:3};
+  PHYS.forEach((k,off)=>{ if((w+off)%4!==3) o[k]=off; });
+  return o;
+}
 let scan=null;
 // 以前の検証用に保存していた撮影データは削除する
 try{ indexedDB.deleteDatabase('jansou-shots'); }catch(e){}
-function playerFor(role){ const n=N(), off=roleOffs()[role], sh=scan.shooter; return S.seat.indexOf((S.seat[sh]+off)%n); }
+function playerFor(role){ const off=roleOffs()[role], sh=scanShooter(); return S.seat.indexOf((S.seat[sh]+off)%4); }
 // 写真（または重ね合わせた画像）を読み取り、合計が合う候補の値を作る
-function analyzeScan(src){
-  const res=SegOCR.read(src);
+function analyzeScan(src){ return analyzeRes(SegOCR.read(src)); }
+function analyzeRes(res){
   const vals={}, raw={}, note={}, ks=Object.keys(roleOffs()), target=S.rules.start*N();
   ks.forEach(k=>{ const g=res.roles[k]; raw[k]=g?g.text:''; });
   // 合計（配給原点×人数）が合う組み合わせを探す。百点単位・十点単位の両方を試す
@@ -642,11 +655,12 @@ function analyzeScan(src){
   return {res,vals,raw,note,ks,solved:!!sol,sure:!!sol&&!filled&&!Object.keys(note).length};
 }
 function showScan(a,mode){
-  const st=seated(); scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:st.includes(S.shooter)?S.shooter:st[0]};
+  scan={res:a.res,vals:a.vals,raw:a.raw,note:a.note,shooter:scanShooter()};
   $('scanBusy').hidden=true; $('scanBox').hidden=false; renderScan(true);
   $('scanBox').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function runScan(src){
+  scan=null;
   $('scanBusy').textContent='読み取り中…'; $('scanBusy').hidden=false; $('scanBox').hidden=true;
   try{
     const img=new Image(); img.src=src; await img.decode();
@@ -740,8 +754,8 @@ const Live=(()=>{
   async function loop(id){
     while(video.readyState<2&&id===run) await new Promise(r=>setTimeout(r,50));
     const cv=stackCanvas(video.videoWidth,video.videoHeight); let tries=0; const hist=[];
-    msg('点数表示が画面の横幅いっぱいに入るくらいまで近づけてください。4人の合計が合うと自動で読み取ります。');
-    const showRead=(ks,pick)=>{ $('liveRead').innerHTML=ks.map(k=>`<span>${ROLE_LBL[k].replace(/（.*）/,'')} <b>${pick[k]?esc(String(pick[k].v*100)):'—'}</b>${pick[k]?' ✓':''}</span>`).join(''); };
+    msg(`点数表示が画面の横幅いっぱいに入るくらいまで近づけてください。${N()}人の合計が合うと自動で読み取ります。`);
+    const showRead=(ks,pick)=>{ $('liveRead').innerHTML=ks.map(k=>`<span>${roleLbl(k).replace(/（.*）/,'')} <b>${pick[k]?esc(String(pick[k].v*100)):'—'}</b>${pick[k]?' ✓':''}</span>`).join(''); };
     const consider=(a,src,mode)=>{
       hist.push(exactReads(a)); if(hist.length>12) hist.shift();
       const pick=vote(hist,a.ks); showRead(a.ks,pick);
@@ -778,6 +792,7 @@ const Live=(()=>{
 })();
 // 動画から：0.5秒ずつ重ねて読み、合計が合った区間を使う（だめなら一番よく読めた区間）
 async function scanVideo(file){
+  scan=null;
   $('scanBusy').textContent='動画を読み取り中…'; $('scanBusy').hidden=false; $('scanBox').hidden=true;
   const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.src=URL.createObjectURL(file);
   try{
@@ -818,7 +833,7 @@ function renderScan(redraw,rows){
   if(!$('scanRows').contains(document.activeElement)){
     $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=!!v.miss;
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
-      <div class="role">${ROLE_LBL[k]}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:(scan.note[k]?`・<span class="raw">${scan.note[k]}（読み取り「${esc(scan.raw[k]||'—')}」）</span>`:'')}</div>
+      <div class="role">${roleLbl(k)}${miss?`・<span class="raw">${scan.raw[k]?'読み取り「'+esc(scan.raw[k])+'」':'見つかりませんでした'}</span>`:(scan.note[k]?`・<span class="raw">${scan.note[k]}（読み取り「${esc(scan.raw[k]||'—')}」）</span>`:'')}</div>
       ${stepperHTML('scan:'+k,scanVal(k),v.v==='',esc(nameOf(p)))}</div>`; }).join('');
   }
   }
@@ -838,7 +853,7 @@ $('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files
 $('pickIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
 // 撮影ボタン：アプリ内カメラ（重ね合わせ・自動読み取り）。使えないときは今まで通り写真を撮る
 // 撮影ボタン：先に「撮影するのは誰？」を選んでからカメラへ（選び忘れ防止）
-$('camBtn').addEventListener('click',()=>{ $('scanBox').hidden=true; $('scanBusy').hidden=true;
+$('camBtn').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; $('scanBusy').hidden=true;
   const st=seated();
   $('shooterList').innerHTML=st.map(i=>`<button type="button" data-p="${i}" ${i===S.shooter?'aria-current="true"':''}><b>${esc(nameOf(i))}</b><small>${WINDS[S.seat[i]]}家</small></button>`).join('');
   $('shooterDlg').showModal(); });
@@ -849,7 +864,10 @@ $('shooterList').addEventListener('click',e=>{ const b=e.target.closest('[data-p
 $('shooterClose').addEventListener('click',()=>$('shooterDlg').close());
 $('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('shooterDlg').close(); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
-$('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur(); renderScan(); });
+$('segShooter').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; scan.shooter=Number(b.dataset.v); S.shooter=scan.shooter; save(); blur();
+  // 三麻は撮影する人の席で、どの表示に相手が出るかが変わる → 読み取り結果から計算し直す
+  if(N()===3){ const a=analyzeRes(scan.res); Object.assign(scan,{vals:a.vals,raw:a.raw,note:a.note}); $('scanRows').innerHTML=''; }
+  renderScan(); });
 function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNaN(n)?S.rules.start:n; }
 bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
   const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
