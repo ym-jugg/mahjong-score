@@ -190,7 +190,8 @@ function renderHeader(){ renderSaveState();
   else if(S.cloud){ const p=Sync.pendingCount(); cs.hidden=false; cs.className='cloudbar'+(p?' warn':'');
     cs.innerHTML=`<b>共有中</b>「${esc(S.cloud.name||'卓')}」・${/参加しました/.test(Sync.msg)?'参加しました':p?`未送信${p}件（通信が戻ると送ります）`:(Sync.online()?'同期しています':'オフライン')}`; }
   else if(Cloud.configured&&lsGet(KEY+':join')){ cs.hidden=false; cs.className='cloudbar invite';
-    cs.innerHTML=`<span><b>招待されています</b>・Googleでログインすると卓に参加できます</span><button type="button" class="btn" id="joinLogin">ログインして参加</button>`; }
+    const iosWeb=/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone;
+    cs.innerHTML=`<span><b>招待されています</b>・Googleでログインすると卓に参加できます${iosWeb?'<small class="invite-note">ホーム画面のアプリを使っている人も、まずこの画面でログインして参加してください。参加後はアプリを開くと卓の一覧から選べます。</small>':''}</span><button type="button" class="btn" id="joinLogin">ログインして参加</button>`; }
   else cs.hidden=true;
 }
 
@@ -903,6 +904,8 @@ function startCapture(){
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ $('camIn').click(); return; }
   Live.open();
 }
+$('tablePickList').addEventListener('click',async e=>{ const b=e.target.closest('[data-pick]'); if(!b) return; $('tablePick').close(); if(b.dataset.pick) await Sync.switchTo(b.dataset.pick); });
+$('tablePickClose').addEventListener('click',()=>$('tablePick').close());
 $('shooterClose').addEventListener('click',()=>$('shooterDlg').close());
 $('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('shooterDlg').close(); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
@@ -1019,9 +1022,17 @@ const Sync=(function(){
     if(unsub){ unsub(); unsub=null; }
     lsSet(ACTIVE,null); S=loadJSON(KEY)||sample(); normalize(); lastShared=null; update();
   }
-  async function refreshTables(){ try{ tables=await Cloud.listTables(); }catch(e){ tables=[]; msg=e.message; } renderShare(); }
+  async function refreshTables(){ try{ tables=(await Cloud.listTables()).sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at))); }catch(e){ tables=[]; msg=e.message; } renderShare(); }
+  // ログインした直後・アプリを開いた直後に、参加している卓の一覧から選べるようにする。
+  // 今表示している卓が一番新しく更新された卓なら、そのまま続ける（毎回は出さない）
+  function offerTables(){
+    if(!tables||!tables.length||$('shareDlg').open||document.querySelector('dialog[open]')) return;
+    if(S.cloud&&tables[0].id===S.cloud.id) return;
+    renderTablePick(); $('tablePick').showModal();
+  }
   async function afterLogin(){
     const jt=lsGet(KEY+':join');
+    if(!jt){ if(S.cloud) open(S.cloud.id).catch(e=>{ msg=e.message; renderShare(); }); await refreshTables(); offerTables(); return; }
     if(jt){ lsSet(KEY+':join',null);
       try{ const tid=await Cloud.join(jt,displayName()); msg='卓に参加しました'; await switchTo(tid); setTimeout(()=>{ if(msg==='卓に参加しました'){ msg=''; renderHeader(); } },6000); }
       catch(e){ msg=e.message; }
@@ -1054,6 +1065,10 @@ const Sync=(function(){
     pendingCount:()=>pending().length, online:()=>navigator.onLine!==false,
     get user(){return user}, get members(){return members}, get tables(){return tables}, get msg(){return msg}, set msg(v){msg=v},
     get busy(){return busy}, set busy(v){busy=v}, displayName};
+  function renderTablePick(){
+    const c=S.cloud, when=t=>new Date(t.updated_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    $('tablePickList').innerHTML=tables.map((t,i)=>`<div class="trow"><div><b>${esc(t.name)}</b>${i===0&&!(c&&c.id===t.id)?' <span class="chip on">最新</span>':''}<div class="hint">${when(t)}更新</div></div>${c&&c.id===t.id?'<button type="button" class="btn ghost" data-pick="">このまま続ける</button>':`<button type="button" class="btn${i===0?'':' ghost'}" data-pick="${t.id}">開く</button>`}</div>`).join('');
+  }
 })();
 const baseUrl=()=>location.origin+location.pathname;
 function copyText(txt,btn){

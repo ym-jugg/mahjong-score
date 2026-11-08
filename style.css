@@ -381,3 +381,5 @@ table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-wei
 .ep-top{grid-column:2;grid-row:1}.ep-left{grid-column:1;grid-row:2}.ep-right{grid-column:3;grid-row:2}
 .ep-table{grid-column:2;grid-row:2;aspect-ratio:1;display:grid;place-items:center;border-radius:12px;background:var(--felt);color:var(--felt-ink);font-weight:700;opacity:.85}
 .ep-me{grid-column:1/4;grid-row:3;text-align:center;font-weight:700;padding:10px;border-radius:12px;background:var(--felt-soft);color:var(--felt)}
+.invite-note{display:block;margin-top:4px;font-size:12px;opacity:.85;line-height:1.5}
+#tablePickList .btn{width:auto;flex:none;padding:10px 18px;white-space:nowrap}
