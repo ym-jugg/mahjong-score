@@ -620,7 +620,7 @@ function scanShooter(){ if(scan) return scan.shooter; const st=seated(); return 
 //   自分以外の右・向かい・左のうち、自分と合わせて合計が「配給原点×3」になる2つが相手、残りが空席。
 //   相手は右→向かい→左の順に回って先に来る方が下家、次が上家（打つ順は反時計回り）。
 //   決まらないときは、前回の結果 → 「北が空席」の順に仮に決め、確認画面で直せる。
-let lastEmpty=null;  // {sh:撮影者, e:空席の位置(1=右,2=向かい,3=左)}
+let lastEmpty=null, chosenEmpty=null;  // chosenEmpty：撮影前に選んだ空席の位置  // {sh:撮影者, e:空席の位置(1=右,2=向かい,3=左)}
 function defaultEmpty(sh){ const w=S.seat[sh]; if(lastEmpty&&lastEmpty.sh===sh) return lastEmpty.e; return w>=0?(7-w)%4||3:3; }
 function roleOffs(e){
   if(N()===4) return {self:0,shimocha:1,toimen:2,kamicha:3};
@@ -641,6 +641,7 @@ function pickEmpty(cands,force){
   return pref.find(e=>e!=null&&cands.includes(e));
 }
 function analyzeRes(res,force){
+  if(force==null&&N()===3&&chosenEmpty!=null) force=chosenEmpty;
   const target=S.rules.start*N();
   let empty=null, ambiguous=false, sol=null;
   if(N()===3){
@@ -782,7 +783,7 @@ const Live=(()=>{
       const pick=vote(hist,N()===3?PHYS:a.ks); showRead(a.ks,pick);
       if(a.sure){ accept(a,src,mode); return true; }
       // 三麻は空席の位置ごとに試し、1通りだけ合計が合えば確定
-      const opts=N()===3?[1,2,3].map(e=>({e,ks:Object.keys(roleOffs(e))})).map(o=>Object.assign(o,{vals:voteSolve(pick,o.ks)})).filter(o=>o.vals):[{e:null,ks:a.ks,vals:voteSolve(pick,a.ks)}].filter(o=>o.vals);
+      const opts=N()===3?[1,2,3].map(e=>({e,ks:Object.keys(roleOffs(e))})).filter(o=>chosenEmpty==null||o.e===chosenEmpty).map(o=>Object.assign(o,{vals:voteSolve(pick,o.ks)})).filter(o=>o.vals):[{e:null,ks:a.ks,vals:voteSolve(pick,a.ks)}].filter(o=>o.vals);
       if(opts.length===1){ const o=opts[0];
         accept(Object.assign({},a,{ks:o.ks,empty:o.e,ambiguous:false,vals:o.vals,note:{},raw:Object.fromEntries(o.ks.map(k=>[k,String(pick[k].v)])),solved:true,sure:true}),src,mode); return true; }
       return false;
@@ -855,7 +856,7 @@ function renderScan(redraw,rows){
   setSeg($('segShooter'),scan.shooter);
   $('emptyWrap').hidden=N()!==3;
   if(N()===3){ $('segEmpty').innerHTML=[[1,'右'],[2,'向かい'],[3,'左']].map(([v,l])=>`<button type="button" data-v="${v}">${l}</button>`).join(''); setSeg($('segEmpty'),scan.empty);
-    $('emptyHint').textContent=scan.ambiguous?'合計からは決めきれませんでした。空いている席の表示を確かめてください。':'合計から判定しました。違っていたら選び直してください。'; }
+    $('emptyHint').textContent=chosenEmpty!=null?'撮影の前に選んだ位置です。間違えたときは選び直してください。':scan.ambiguous?'合計からは決めきれませんでした。空いている席の表示を確かめてください。':'合計から判定しました。違っていたら選び直してください。'; }
   if(!$('scanRows').contains(document.activeElement)){
     $('scanRows').innerHTML=Object.keys(roleOffs()).map(k=>{ const p=playerFor(k), v=scan.vals[k], miss=!!v.miss;
       return `<div class="entry ${miss?'miss':''}"><div class="nm">${esc(nameOf(p))}<small>${WINDS[S.seat[p]]}家</small></div>
@@ -879,14 +880,29 @@ $('camIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files
 $('pickIn').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; Live.stop(); if($('liveCam').open) $('liveCam').close(); pickedFile(f); });
 // 撮影ボタン：アプリ内カメラ（重ね合わせ・自動読み取り）。使えないときは今まで通り写真を撮る
 // 撮影ボタン：先に「撮影するのは誰？」を選んでからカメラへ（選び忘れ防止）
-$('camBtn').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; $('scanBusy').hidden=true;
+$('camBtn').addEventListener('click',()=>{ scan=null; chosenEmpty=null; $('scanBox').hidden=true; $('scanBusy').hidden=true;
   const st=seated();
+  $('shooterTitle').textContent='撮影するのは誰？'; $('shooterHint').textContent='撮影する人の手元の表示を「自分」として、ほかの席を割り当てます。';
+  $('shooterList').hidden=false; $('emptyStep').hidden=true;
   $('shooterList').innerHTML=st.map(i=>`<button type="button" data-p="${i}" ${i===S.shooter?'aria-current="true"':''}><b>${esc(nameOf(i))}</b><small>${WINDS[S.seat[i]]}家</small></button>`).join('');
   $('shooterDlg').showModal(); });
 $('shooterList').addEventListener('click',e=>{ const b=e.target.closest('[data-p]'); if(!b) return;
-  S.shooter=Number(b.dataset.p); save(); $('shooterDlg').close();
+  S.shooter=Number(b.dataset.p); save();
+  // 三麻は毎回、撮影する人から見てどの席が空いているかを選んでもらう（空席の表示と誰かの点数が同じでも迷わないように）
+  if(N()===3){
+    $('shooterTitle').textContent='空いている席はどこ？'; $('shooterHint').textContent=`${nameOf(S.shooter)}さんの席から見て、誰も座っていない席を押してください。`;
+    $('emptyMe').textContent=`自分（${nameOf(S.shooter)}）`;
+    const last=lastEmpty&&lastEmpty.sh===S.shooter?lastEmpty.e:null;
+    $('emptyStep').querySelectorAll('[data-e]').forEach(x=>x.toggleAttribute('aria-current',Number(x.dataset.e)===last));
+    $('shooterList').hidden=true; $('emptyStep').hidden=false; return;
+  }
+  startCapture(); });
+$('emptyStep').addEventListener('click',e=>{ const b=e.target.closest('[data-e]'); if(!b) return; chosenEmpty=Number(b.dataset.e); startCapture(); });
+function startCapture(){
+  $('shooterDlg').close();
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ $('camIn').click(); return; }
-  Live.open(); });
+  Live.open();
+}
 $('shooterClose').addEventListener('click',()=>$('shooterDlg').close());
 $('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('shooterDlg').close(); });
 if($('demoScan')) $('demoScan').addEventListener('click',()=>{ if(window.SAMPLE_PHOTO) runScan(window.SAMPLE_PHOTO); });
@@ -898,7 +914,7 @@ function scanVal(k){ const v=scan.vals[k]; const n=parseInt(v.v,10); return isNa
 bindStepper($('scanRows'),k=>scanVal(k.split(':')[1]),(k,v)=>{ const r=k.split(':')[1]; scan.vals[r].v=String(v); scan.vals[r].miss=false;
   const row=$('scan_'+r)&&$('scan_'+r).closest('.entry'); if(row) row.classList.remove('miss'); renderScan(false,false); });
 $('segEmpty').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b||!scan) return;
-  const a=analyzeRes(scan.res,Number(b.dataset.v)); Object.assign(scan,{vals:a.vals,raw:a.raw,note:a.note,empty:a.empty,ambiguous:false}); blur();
+  chosenEmpty=Number(b.dataset.v); const a=analyzeRes(scan.res,chosenEmpty); Object.assign(scan,{vals:a.vals,raw:a.raw,note:a.note,empty:a.empty,ambiguous:false}); blur();
   $('scanRows').innerHTML=''; renderScan(); });
 $('scanCancel').addEventListener('click',()=>{ scan=null; $('scanBox').hidden=true; });
 $('scanApply').addEventListener('click',()=>{

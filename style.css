@@ -374,3 +374,10 @@ table.cmp td small.sub2{display:block;font-size:10px;color:var(--muted);font-wei
 .live-denied .btn.ghost{background:transparent;color:#fff;border-color:#55605b}
 .live-note{margin:-2px 0 0;font-size:12px;color:#aab5b0;text-align:center}
 #livePhoto{justify-content:center;text-align:center}
+.empty-pick{display:grid;grid-template-columns:1fr 1.2fr 1fr;grid-template-rows:auto auto auto;gap:10px;align-items:center;justify-items:stretch;margin-top:4px}
+.empty-pick button{font:inherit;font-weight:700;font-size:16px;padding:16px 6px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:inherit;cursor:pointer}
+.empty-pick button[aria-current]{border-color:var(--felt);box-shadow:0 0 0 2px var(--felt) inset}
+.empty-pick button:active{transform:scale(.97)}
+.ep-top{grid-column:2;grid-row:1}.ep-left{grid-column:1;grid-row:2}.ep-right{grid-column:3;grid-row:2}
+.ep-table{grid-column:2;grid-row:2;aspect-ratio:1;display:grid;place-items:center;border-radius:12px;background:var(--felt);color:var(--felt-ink);font-weight:700;opacity:.85}
+.ep-me{grid-column:1/4;grid-row:3;text-align:center;font-weight:700;padding:10px;border-radius:12px;background:var(--felt-soft);color:var(--felt)}

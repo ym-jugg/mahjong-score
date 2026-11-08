@@ -16,8 +16,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<script src="move.js?v=61"></script>
-<link rel="stylesheet" href="style.css?v=61">
+<script src="move.js?v=62"></script>
+<link rel="stylesheet" href="style.css?v=62">
 </head>
 <body>
 <div class="wrap">
@@ -248,8 +248,15 @@
 
 <dialog id="shooterDlg" class="pickdlg" aria-labelledby="shooterTitle">
   <div class="sheet-hd"><h2 id="shooterTitle">撮影するのは誰？</h2><button type="button" class="btn ghost" id="shooterClose">やめる</button></div>
-  <p class="hint" style="margin:0 0 12px">撮影する人の手元の表示を「自分」として、ほかの3人の席を割り当てます。</p>
+  <p class="hint" style="margin:0 0 12px" id="shooterHint">撮影する人の手元の表示を「自分」として、ほかの3人の席を割り当てます。</p>
   <div class="shooters" id="shooterList"></div>
+  <div class="empty-pick" id="emptyStep" hidden>
+    <button type="button" class="ep-top" data-e="2">向かい</button>
+    <button type="button" class="ep-left" data-e="3">左</button>
+    <div class="ep-table">卓</div>
+    <button type="button" class="ep-right" data-e="1">右</button>
+    <div class="ep-me" id="emptyMe">自分</div>
+  </div>
 </dialog>
 
 <dialog id="liveCam" class="live" aria-label="点数表示の読み取り">
@@ -279,10 +286,10 @@
     </div>
   </div>
 </dialog>
-<script src="config.js?v=61"></script>
-<script src="cloud.js?v=61"></script>
-<script src="ocr.js?v=61"></script>
-<script src="app.js?v=61"></script>
+<script src="config.js?v=62"></script>
+<script src="cloud.js?v=62"></script>
+<script src="ocr.js?v=62"></script>
+<script src="app.js?v=62"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>
