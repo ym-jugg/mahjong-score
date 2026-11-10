@@ -16,8 +16,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<script src="move.js?v=63"></script>
-<link rel="stylesheet" href="style.css?v=63">
+<script src="move.js?v=64"></script>
+<link rel="stylesheet" href="style.css?v=64">
 </head>
 <body>
 <div class="wrap">
@@ -246,6 +246,17 @@
   <iframe id="privacyFrame" title="プライバシーポリシー" class="docframe"></iframe>
 </dialog>
 
+<dialog id="qrJoin" class="pickdlg" aria-labelledby="qrJoinTitle">
+  <div class="sheet-hd"><h2 id="qrJoinTitle">QRで参加</h2><button type="button" class="btn ghost" id="qrJoinClose">閉じる</button></div>
+  <p class="hint" style="margin:0 0 10px">卓を作った人のスマホに出ている「招待用QRコード」を、枠に合わせて写してください。</p>
+  <div class="qr-cam"><video id="qrVideo" playsinline muted autoplay></video><div class="qr-frame"></div></div>
+  <p class="qr-msg" id="qrMsg"></p>
+  <label class="btn ghost" for="qrPhoto">写真・スクリーンショットから読み取る</label>
+  <input type="file" id="qrPhoto" accept="image/*" hidden>
+  <details class="qr-paste"><summary>招待リンクを貼り付けて参加する</summary>
+    <div class="qr-row"><input type="url" id="qrText" placeholder="https://janshot.vercel.app/?join=…" autocomplete="off"><button type="button" class="btn" id="qrTextGo">参加</button></div></details>
+</dialog>
+
 <dialog id="tablePick" class="pickdlg" aria-labelledby="tablePickTitle">
   <div class="sheet-hd"><h2 id="tablePickTitle">どの卓を開きますか？</h2><button type="button" class="btn ghost" id="tablePickClose">閉じる</button></div>
   <p class="hint" style="margin:0 0 12px">参加している卓です（新しく更新された順）。あとからメニューの「共有・卓の切り替え」でも切り替えられます。</p>
@@ -288,14 +299,15 @@
     <div class="menulist">
       <button type="button" class="cloud-only" id="menuLogin"><span class="k" id="menuLoginK">入</span><span><b id="menuLoginT">ログイン</b><small id="menuLoginS">Googleアカウントでログイン</small></span></button>
       <button type="button" class="cloud-only" data-go="share"><span class="k">共</span><span><b>共有・卓の切り替え</b><small>参加している卓・招待リンク・QRコード</small></span></button>
+      <button type="button" class="cloud-only" id="menuQr"><span class="k">参</span><span><b>QRで参加</b><small>招待のQRコードをアプリのカメラで読み取る</small></span></button>
       <a href="privacy.html" id="menuPrivacy"><span class="k">約</span><span><b>プライバシーポリシー</b><small>保存するデータについて</small></span></a>
     </div>
   </div>
 </dialog>
-<script src="config.js?v=63"></script>
-<script src="cloud.js?v=63"></script>
-<script src="ocr.js?v=63"></script>
-<script src="app.js?v=63"></script>
+<script src="config.js?v=64"></script>
+<script src="cloud.js?v=64"></script>
+<script src="ocr.js?v=64"></script>
+<script src="app.js?v=64"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
 </body>
 </html>

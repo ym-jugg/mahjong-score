@@ -191,7 +191,7 @@ function renderHeader(){ renderSaveState();
     cs.innerHTML=`<b>共有中</b>「${esc(S.cloud.name||'卓')}」・${/参加しました/.test(Sync.msg)?'参加しました':p?`未送信${p}件（通信が戻ると送ります）`:(Sync.online()?'同期しています':'オフライン')}`; }
   else if(Cloud.configured&&lsGet(KEY+':join')){ cs.hidden=false; cs.className='cloudbar invite';
     const iosWeb=/iPhone|iPad|iPod/.test(navigator.userAgent)&&!navigator.standalone;
-    cs.innerHTML=`<span><b>招待されています</b>・Googleでログインすると卓に参加できます${iosWeb?'<small class="invite-note">ホーム画面のアプリを使っている人も、まずこの画面でログインして参加してください。参加後はアプリを開くと卓の一覧から選べます。</small>':''}</span><button type="button" class="btn" id="joinLogin">ログインして参加</button>`; }
+    cs.innerHTML=`<span><b>招待されています</b>・Googleでログインすると卓に参加できます${iosWeb?'<small class="invite-note">ホーム画面に雀ショットを入れている人は、この画面を閉じて、アプリのメニュー「QRで参加」から読み取ると簡単です。</small>':''}</span><button type="button" class="btn" id="joinLogin">ログインして参加</button>`; }
   else cs.hidden=true;
 }
 
@@ -1030,6 +1030,13 @@ const Sync=(function(){
     if(S.cloud&&tables[0].id===S.cloud.id) return;
     renderTablePick(); $('tablePick').showModal();
   }
+  // 招待トークンで参加（アプリ内のQR読み取りから）。未ログインならログイン後に参加する
+  async function joinWith(tok){
+    lsSet(KEY+':join',tok); const was=loaded;
+    await start();
+    if(!user){ await Cloud.signIn(); return; }
+    if(was) await afterLogin();
+  }
   async function afterLogin(){
     const jt=lsGet(KEY+':join');
     if(!jt){ if(S.cloud) open(S.cloud.id).catch(e=>{ msg=e.message; renderShare(); }); await refreshTables(); offerTables(); return; }
@@ -1061,7 +1068,7 @@ const Sync=(function(){
   addEventListener('online',()=>{ flush(); renderHeader(); });
   addEventListener('offline',()=>renderHeader());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.cloud&&user) open(S.cloud.id).catch(()=>{}); });
-  return {init,start,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
+  return {init,start,joinWith,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
     pendingCount:()=>pending().length, online:()=>navigator.onLine!==false,
     get user(){return user}, get members(){return members}, get tables(){return tables}, get msg(){return msg}, set msg(v){msg=v},
     get busy(){return busy}, set busy(v){busy=v}, displayName};
@@ -1098,7 +1105,7 @@ function renderShare(){
         <span class="hint">参加者：${Sync.members.map(x=>esc(x.display_name||'名前なし')).join('、')||'—'}</span></div>
       <div class="row"><span class="lbl">招待リンク（ログインして一緒に入力できる）</span>
         <div class="linkrow"><input readonly value="${c.invite?esc(baseUrl()+'?join='+c.invite):''}" aria-label="招待リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button><button type="button" class="btn ghost" data-act="qr" data-k="invite" aria-expanded="${!!qrOpen.invite}">QR</button></div>
-        ${qrBox('invite',c.invite?baseUrl()+'?join='+c.invite:'','参加する人のスマホのカメラで読み取ってもらってください')}</div>
+        ${qrBox('invite',c.invite?baseUrl()+'?join='+c.invite:'','参加する人に読み取ってもらってください。雀ショットをホーム画面に入れている人は、アプリのメニュー「QRで参加」から読むと簡単です')}</div>
       <div class="row"><span class="lbl">閲覧リンク（ログイン不要・見るだけ）</span>
         <div class="linkrow"><input readonly value="${c.viewTok?esc(baseUrl()+'?view='+c.viewTok):''}" aria-label="閲覧リンク"><button type="button" class="btn ghost" data-act="copy">コピー</button><button type="button" class="btn ghost" data-act="qr" data-k="view" aria-expanded="${!!qrOpen.view}">QR</button></div>
         ${qrBox('view',c.viewTok?baseUrl()+'?view='+c.viewTok:'','見る人のスマホのカメラで読み取ってもらってください')}
@@ -1335,12 +1342,75 @@ $('menuClose').addEventListener('click',()=>menu.close());
 menu.addEventListener('click',e=>{
   if(e.target===menu){ menu.close(); return; }  // 外側（暗いところ）をタップで閉じる
   if(e.target.closest('#menuPrivacy')){ e.preventDefault(); menu.close(); if(!$('privacyFrame').src) $('privacyFrame').src='privacy.html'; $('privacyDlg').showModal(); return; }
+  if(e.target.closest('#menuQr')){ menu.close(); QRJoin.open(); return; }
   if(e.target.closest('#menuLogin')){ menu.close();
     (async()=>{ try{ await Sync.start(); if(Sync.user){ await Cloud.signOut(); Sync.toLocal(); update(); } else await Cloud.signIn(); }
       catch(err){ Sync.msg=err.message; show('share'); update(); } })(); return; }
   const b=e.target.closest('[data-go]'); if(!b) return;
   menu.close(); show(b.dataset.go); update(); window.scrollTo(0,0);
 });
+
+// QRで参加：招待QRをアプリ内のカメラ（または写真）で読み取る。
+// iPhoneはSafariとホーム画面のアプリでログインやデータが別々なので、アプリの中で読み取れば迷わない
+const QRJoin=(()=>{
+  const dlg=$('qrJoin'), video=$('qrVideo'), cv=document.createElement('canvas'), cx=cv.getContext('2d',{willReadFrequently:true});
+  let stream=null, timer=0, lib=null, done=false;
+  const msg=(t,bad)=>{ $('qrMsg').textContent=t; $('qrMsg').classList.toggle('bad',!!bad); };
+  const load=()=>lib||(lib=new Promise((ok,ng)=>{ const sc=document.createElement('script'); sc.src='lib/jsqr.js'; sc.onload=()=>ok(window.jsQR); sc.onerror=()=>{ lib=null; ng(new Error('読み取りの準備ができませんでした（通信を確認してください）')); }; document.head.appendChild(sc); }));
+  function decode(src,w,h){
+    const k=Math.min(1,900/Math.max(w,h)); cv.width=Math.max(1,Math.round(w*k)); cv.height=Math.max(1,Math.round(h*k));
+    cx.drawImage(src,0,0,cv.width,cv.height); const d=cx.getImageData(0,0,cv.width,cv.height);
+    const r=window.jsQR(d.data,cv.width,cv.height,{inversionAttempts:'attemptBoth'}); return r&&r.data;
+  }
+  function tokenOf(text){
+    text=String(text||'').trim();
+    try{ const u=new URL(text), j=u.searchParams.get('join'), v=u.searchParams.get('view');
+      if(j) return {join:j}; if(v) return {view:v}; return null; }catch(e){}
+    return /^[A-Za-z0-9_-]{12,}$/.test(text)?{join:text}:null;
+  }
+  async function handle(text){
+    const t=tokenOf(text);
+    if(!t){ msg('雀ショットの招待QRコードではないようです。',true); return false; }
+    done=true; stop(); dlg.close();
+    if(t.view){ location.href=baseUrl()+'?view='+encodeURIComponent(t.view); return true; }
+    try{ await Sync.joinWith(t.join); }catch(e){ Sync.msg=e.message; }
+    if(Sync.msg&&Sync.msg!=='卓に参加しました') openShare();
+    update(); return true;
+  }
+  function tick(){
+    timer=setTimeout(async()=>{
+      if(!stream||done) return;
+      if(video.videoWidth){ const t=decode(video,video.videoWidth,video.videoHeight); if(t&&await handle(t)) return; }
+      tick();
+    },200);
+  }
+  function stop(){ clearTimeout(timer); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } video.srcObject=null; }
+  async function open(){
+    done=false; $('qrText').value=''; dlg.showModal(); msg('カメラを起動しています…');
+    try{ await load(); }catch(e){ msg(e.message,true); return; }
+    if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ msg('この画面ではカメラを使えません。下の「写真・スクリーンショットから読み取る」を使ってください。',true); return; }
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'}}}); }
+    catch(e){ msg(e&&(e.name==='NotAllowedError'||e.name==='SecurityError')?'カメラが許可されていません。下の「写真・スクリーンショットから読み取る」か、リンクの貼り付けで参加できます。':'カメラを起動できませんでした。下の「写真・スクリーンショットから読み取る」を使ってください。',true); return; }
+    if(!dlg.open){ stop(); return; }
+    video.srcObject=stream; try{ await video.play(); }catch(e){}
+    msg('QRコードを枠に合わせてください'); tick();
+  }
+  $('qrJoinClose').addEventListener('click',()=>{ stop(); dlg.close(); });
+  dlg.addEventListener('close',stop);
+  $('qrPhoto').addEventListener('change',async e=>{
+    const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    try{ await load(); }catch(err){ msg(err.message,true); return; }
+    msg('読み取っています…');
+    const img=new Image(), url=URL.createObjectURL(f);
+    img.onload=async()=>{ URL.revokeObjectURL(url); const t=decode(img,img.naturalWidth,img.naturalHeight);
+      if(!t){ msg('QRコードが見つかりませんでした。QRコードが大きく写るように撮り直してください。',true); return; }
+      await handle(t); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); msg('画像を開けませんでした。',true); };
+    img.src=url;
+  });
+  $('qrTextGo').addEventListener('click',()=>handle($('qrText').value));
+  return {open,tokenOf};
+})();
 
 function update(){ renderHeader(); renderRules(); renderPlayers(); renderEntry(); renderGames(); renderTotal(); renderArchives(); if(!$('v-stats').hidden) renderStats(); if(!$('shareBox').contains(document.activeElement)) renderShare(); save(); }
 if(RO){ document.body.classList.add('ro'); show('game'); update(); if(Cloud.configured) viewLoop(); else { S.viewErr='共有機能が設定されていません'; update(); } }
