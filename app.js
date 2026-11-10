@@ -904,7 +904,7 @@ function startCapture(){
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){ $('camIn').click(); return; }
   Live.open();
 }
-$('tablePickList').addEventListener('click',async e=>{ const b=e.target.closest('[data-pick]'); if(!b) return; $('tablePick').close(); if(b.dataset.pick) await Sync.switchTo(b.dataset.pick); });
+$('tablePickList').addEventListener('click',async e=>{ if(e.target.closest('[data-more]')){ pickShown+=TBL_PAGE; Sync.renderTablePick(); return; } const b=e.target.closest('[data-pick]'); if(!b) return; $('tablePick').close(); if(b.dataset.pick) await Sync.switchTo(b.dataset.pick); });
 $('tablePickClose').addEventListener('click',()=>$('tablePick').close());
 $('shooterClose').addEventListener('click',()=>$('shooterDlg').close());
 $('shooterDlg').addEventListener('click',e=>{ if(e.target===$('shooterDlg')) $('shooterDlg').close(); });
@@ -935,6 +935,9 @@ function canon(v){ if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
   if(v&&typeof v==='object') return '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
   return JSON.stringify(v===undefined?null:v); }
 const sharedOf=s=>({rules:s.rules,names:s.names,members:s.members,chips:s.chips,seat:s.seat,fee:s.fee,archives:s.archives||[],ts:s.ts||{}});
+// 参加している卓の一覧は10件ずつ表示し、それより多いときは「次の10件を表示」で開いていく
+const TBL_PAGE=10; let shareShown=TBL_PAGE, pickShown=TBL_PAGE;
+const moreBtn=(rest,attr)=>rest>0?`<button type="button" class="btn ghost more-btn" ${attr}>${rest>TBL_PAGE?`次の${TBL_PAGE}件を表示<small>（残り${rest}件）</small>`:`残り${rest}件を表示`}</button>`:'';
 const Sync=(function(){
   let lastShared=null, timer=null, unsub=null, user=null, loaded=false, msg='', members=[], tables=null, busy=false;
   const pk=()=>tKey(S.cloud.id)+':pending';
@@ -1028,7 +1031,7 @@ const Sync=(function(){
   function offerTables(){
     if(!tables||!tables.length||$('shareDlg').open||document.querySelector('dialog[open]')) return;
     if(S.cloud&&tables[0].id===S.cloud.id) return;
-    renderTablePick(); $('tablePick').showModal();
+    pickShown=TBL_PAGE; renderTablePick(); $('tablePick').showModal();
   }
   // 招待トークンで参加（アプリ内のQR読み取りから）。未ログインならログイン後に参加する
   async function joinWith(tok){
@@ -1068,13 +1071,13 @@ const Sync=(function(){
   addEventListener('online',()=>{ flush(); renderHeader(); });
   addEventListener('offline',()=>renderHeader());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.cloud&&user) open(S.cloud.id).catch(()=>{}); });
-  return {init,start,joinWith,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
+  return {init,start,joinWith,renderTablePick,pushState,addGame,deleteGame,switchTo,toLocal,refreshTables,
     pendingCount:()=>pending().length, online:()=>navigator.onLine!==false,
     get user(){return user}, get members(){return members}, get tables(){return tables}, get msg(){return msg}, set msg(v){msg=v},
     get busy(){return busy}, set busy(v){busy=v}, displayName};
   function renderTablePick(){
     const c=S.cloud, when=t=>new Date(t.updated_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    $('tablePickList').innerHTML=tables.map((t,i)=>`<div class="trow"><div><b>${esc(t.name)}</b>${i===0&&!(c&&c.id===t.id)?' <span class="chip on">最新</span>':''}<div class="hint">${when(t)}更新</div></div>${c&&c.id===t.id?'<button type="button" class="btn ghost" data-pick="">このまま続ける</button>':`<button type="button" class="btn${i===0?'':' ghost'}" data-pick="${t.id}">開く</button>`}</div>`).join('');
+    $('tablePickList').innerHTML=tables.slice(0,pickShown).map((t,i)=>`<div class="trow"><div><b>${esc(t.name)}</b>${i===0&&!(c&&c.id===t.id)?' <span class="chip on">最新</span>':''}<div class="hint">${when(t)}更新</div></div>${c&&c.id===t.id?'<button type="button" class="btn ghost" data-pick="">このまま続ける</button>':`<button type="button" class="btn${i===0?'':' ghost'}" data-pick="${t.id}">開く</button>`}</div>`).join('')+moreBtn(tables.length-pickShown,'data-more');
   }
 })();
 const baseUrl=()=>location.origin+location.pathname;
@@ -1098,7 +1101,7 @@ function renderShare(){
   }
   const c=S.cloud, owner=c&&c.owner===u.id;
   const tables=Sync.tables;
-  const list=tables==null?'<div class="hint">読み込み中…</div>':tables.length?tables.map(t=>`<div class="trow"><div><b>${esc(t.name)}</b><div class="hint">${new Date(t.updated_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}更新</div></div>${c&&c.id===t.id?'<span class="chip on">表示中</span>':`<button type="button" class="btn ghost" data-act="open" data-id="${t.id}">開く</button>`}</div>`).join(''):'<div class="hint">まだ参加している卓はありません。</div>';
+  const list=tables==null?'<div class="hint">読み込み中…</div>':tables.length?tables.slice(0,shareShown).map(t=>`<div class="trow"><div><b>${esc(t.name)}</b><div class="hint">${new Date(t.updated_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}更新</div></div>${c&&c.id===t.id?'<span class="chip on">表示中</span>':`<button type="button" class="btn ghost" data-act="open" data-id="${t.id}">開く</button>`}</div>`).join('')+moreBtn(tables.length-shareShown,'data-act="more"'):'<div class="hint">まだ参加している卓はありません。</div>';
   const cur=c?`<div class="panel">
       <div class="row"><span class="lbl">表示中の卓</span>
         <div class="grid2" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><label class="field"><input class="txt" id="tableName" value="${esc(c.name||'')}" maxlength="30" aria-label="卓の名前"></label><button type="button" class="btn ghost" data-act="rename">名前を保存</button></div>
@@ -1143,6 +1146,7 @@ async function fillQR(){
 }
 $('shareBox').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]'); if(!b) return; const act=b.dataset.act;
+  if(act==='more'){ shareShown+=TBL_PAGE; renderShare(); return; }
   Sync.msg='';
   try{
     if(act==='login') await Cloud.signIn();
@@ -1293,7 +1297,7 @@ $('statsBox').addEventListener('click',e=>{
 });
 
 /* ---------- ログイン・共有、プライバシーポリシー（モーダル） ---------- */
-function openShare(){ const d=$('shareDlg'); if(!d.open) d.showModal(); Sync.start(); renderShare(); }
+function openShare(){ const d=$('shareDlg'); if(!d.open){ shareShown=TBL_PAGE; d.showModal(); } Sync.start(); renderShare(); }
 $('cloudState').addEventListener('click',async e=>{ if(!e.target.closest('#joinLogin')) return;
   try{ await Sync.start(); await Cloud.signIn(); }catch(err){ Sync.msg=err.message; openShare(); } });
 $('shareClose').addEventListener('click',()=>{ blur(); $('shareDlg').close(); });
